@@ -1,0 +1,138 @@
+import type { ArchitectureLayer, Plugin } from '../types/architecture'
+
+export const pluginRegistry: Plugin[] = [
+  {
+    id: 'biz-strategy-map',
+    name: 'Strategy Map',
+    layer: 'Business',
+    category: 'Operating Model',
+    metrics: { latency: 42, throughput: 920, successRate: 0.982 },
+    compatibility: [{ requiresLayers: ['Application'], notes: 'Best paired with application capability mapping.' }],
+    visualConfig: { accent: '#2563eb', icon: 'Briefcase', density: 'standard' },
+  },
+  {
+    id: 'biz-kpi-portfolio',
+    name: 'KPI Portfolio',
+    layer: 'Business',
+    category: 'Performance',
+    metrics: { latency: 36, throughput: 760, successRate: 0.991 },
+    compatibility: [{ minThroughput: 600, notes: 'Designed for executive scorecard workloads.' }],
+    visualConfig: { accent: '#0f766e', icon: 'Gauge', density: 'compact' },
+  },
+  {
+    id: 'app-process-orchestrator',
+    name: 'Process Orchestrator',
+    layer: 'Application',
+    category: 'Workflow',
+    metrics: { latency: 88, throughput: 640, successRate: 0.974 },
+    compatibility: [{ requiresLayers: ['Integration', 'Data'], notes: 'Requires downstream integration and data services.' }],
+    visualConfig: { accent: '#7c3aed', icon: 'Workflow', density: 'expanded' },
+  },
+  {
+    id: 'app-policy-studio',
+    name: 'Policy Studio',
+    layer: 'Application',
+    category: 'Governance',
+    metrics: { latency: 61, throughput: 720, successRate: 0.984 },
+    compatibility: [{ incompatibleWith: ['int-legacy-bridge'], notes: 'Policy checks are limited with legacy bridge adapters.' }],
+    visualConfig: { accent: '#4f46e5', icon: 'ShieldCheck', density: 'standard' },
+  },
+  {
+    id: 'int-event-mesh',
+    name: 'Event Mesh',
+    layer: 'Integration',
+    category: 'Messaging',
+    metrics: { latency: 53, throughput: 1450, successRate: 0.986 },
+    compatibility: [{ requiresLayers: ['Infrastructure'], notes: 'Needs resilient infrastructure routing.' }],
+    visualConfig: { accent: '#0891b2', icon: 'RadioTower', density: 'standard' },
+  },
+  {
+    id: 'int-legacy-bridge',
+    name: 'Legacy Bridge',
+    layer: 'Integration',
+    category: 'Adapter',
+    metrics: { latency: 119, throughput: 410, successRate: 0.942 },
+    compatibility: [{ incompatibleWith: ['app-policy-studio'], notes: 'Policy Studio requires richer contract metadata.' }],
+    visualConfig: { accent: '#b45309', icon: 'Cable', density: 'compact' },
+  },
+  {
+    id: 'data-governed-lakehouse',
+    name: 'Governed Lakehouse',
+    layer: 'Data',
+    category: 'Analytics Store',
+    metrics: { latency: 76, throughput: 1180, successRate: 0.979 },
+    compatibility: [{ requiresLayers: ['Operations'], notes: 'Requires observability coverage for lineage and quality.' }],
+    visualConfig: { accent: '#16a34a', icon: 'Database', density: 'expanded' },
+  },
+  {
+    id: 'data-vector-memory',
+    name: 'Vector Memory',
+    layer: 'Data',
+    category: 'Semantic Retrieval',
+    metrics: { latency: 69, throughput: 860, successRate: 0.968 },
+    compatibility: [{ notes: 'Prepared for assistant-assisted retrieval, with user-controlled decisions.' }],
+    visualConfig: { accent: '#db2777', icon: 'Search', density: 'standard' },
+  },
+  {
+    id: 'infra-container-fabric',
+    name: 'Container Fabric',
+    layer: 'Infrastructure',
+    category: 'Runtime',
+    metrics: { latency: 44, throughput: 1320, successRate: 0.988 },
+    compatibility: [{ requiresLayers: ['Hardware', 'Operations'], notes: 'Optimized when hardware and operations layers are both active.' }],
+    visualConfig: { accent: '#475569', icon: 'Boxes', density: 'standard' },
+  },
+  {
+    id: 'infra-serverless-grid',
+    name: 'Serverless Grid',
+    layer: 'Infrastructure',
+    category: 'Runtime',
+    metrics: { latency: 58, throughput: 1080, successRate: 0.981 },
+    compatibility: [{ incompatibleWith: ['hw-edge-cluster'], notes: 'Edge clusters need long-running local services.' }],
+    visualConfig: { accent: '#9333ea', icon: 'Cloud', density: 'compact' },
+  },
+  {
+    id: 'hw-edge-cluster',
+    name: 'Edge Cluster',
+    layer: 'Hardware',
+    category: 'Compute',
+    metrics: { latency: 32, throughput: 970, successRate: 0.963 },
+    compatibility: [{ incompatibleWith: ['infra-serverless-grid'], notes: 'Local edge control conflicts with serverless runtime assumptions.' }],
+    visualConfig: { accent: '#ea580c', icon: 'Cpu', density: 'standard' },
+  },
+  {
+    id: 'hw-private-cloud',
+    name: 'Private Cloud Pool',
+    layer: 'Hardware',
+    category: 'Compute',
+    metrics: { latency: 48, throughput: 1260, successRate: 0.982 },
+    compatibility: [{ notes: 'General-purpose enterprise compute pool.' }],
+    visualConfig: { accent: '#334155', icon: 'Server', density: 'expanded' },
+  },
+  {
+    id: 'ops-observability-hub',
+    name: 'Observability Hub',
+    layer: 'Operations',
+    category: 'Monitoring',
+    metrics: { latency: 27, throughput: 1600, successRate: 0.993 },
+    compatibility: [{ notes: 'Improves simulation confidence through telemetry readiness.' }],
+    visualConfig: { accent: '#0284c7', icon: 'Activity', density: 'compact' },
+  },
+  {
+    id: 'ops-change-control',
+    name: 'Change Control',
+    layer: 'Operations',
+    category: 'Governance',
+    metrics: { latency: 73, throughput: 540, successRate: 0.987 },
+    compatibility: [{ notes: 'Adds approval tracking later, but does not approve automatically.' }],
+    visualConfig: { accent: '#64748b', icon: 'ClipboardCheck', density: 'standard' },
+  },
+]
+
+export function getPluginsByLayer(layer: ArchitectureLayer) {
+  return pluginRegistry.filter((plugin) => plugin.layer === layer)
+}
+
+export function getPluginById(pluginId: string) {
+  return pluginRegistry.find((plugin) => plugin.id === pluginId)
+}
