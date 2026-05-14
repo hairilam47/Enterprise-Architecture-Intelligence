@@ -1,73 +1,46 @@
-# React + TypeScript + Vite
+# Enterprise Architecture Intelligence
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Local-first enterprise architecture workbench with layered architecture, domain entities, graph intelligence, traceability, composition canvas, and workspace persistence.
 
-Currently, two official plugins are available:
+## Frontend
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Backend
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+The Sprint 11 backend is a minimal Node.js + Express + TypeScript API with file-based JSON storage.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd server
+npm install
+npm run dev
+npm run build
+npm start
 ```
+
+Default backend URL:
+
+```text
+http://127.0.0.1:8787/api
+```
+
+Frontend API repository mode uses `VITE_WORKSPACE_API_BASE_URL` when set, otherwise it defaults to `http://127.0.0.1:8787/api`.
+
+Implemented backend endpoints:
+
+```text
+GET    /api/health
+GET    /api/workspaces
+POST   /api/workspaces
+GET    /api/workspaces/:id
+PUT    /api/workspaces/:id
+DELETE /api/workspaces/:id
+POST   /api/workspaces/import
+GET    /api/workspaces/:id/export
+```
+
+Workspace documents are stored locally under `server/data/workspaces/` as JSON files. This folder is intentionally treated as runtime data.

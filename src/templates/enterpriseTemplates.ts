@@ -1,0 +1,102 @@
+import type { WorkspaceTemplate } from './templateTypes'
+
+export const enterpriseTemplates: WorkspaceTemplate[] = [
+  {
+    id: 'microservices',
+    title: 'Microservices',
+    description: 'Requirement, service, API, database, test, and infrastructure starter topology.',
+    category: 'Enterprise Architecture',
+    recommendedMode: 'build',
+    suggestedWorkflow: ['build-analyze-replay'],
+    starterEntities: [
+      { key: 'req', kind: 'requirement', name: 'Reduce fulfillment cycle time', description: 'Business wants faster order-to-delivery visibility.', ownerTeam: 'Business Architecture', tags: ['customer', 'fulfillment'], metadata: { priority: 'high' } },
+      { key: 'svc', kind: 'service', name: 'Order Orchestration Service', description: 'Coordinates order state across fulfillment systems.', ownerTeam: 'Application Platform', tags: ['service', 'orders'] },
+      { key: 'api', kind: 'api', name: 'Orders Experience API', description: 'API boundary for order status and fulfillment events.', ownerTeam: 'API Platform', tags: ['api', 'experience'] },
+      { key: 'db', kind: 'databaseTable', name: 'order_events', description: 'Stores normalized order lifecycle events.', ownerTeam: 'Data Platform', tags: ['events', 'orders'] },
+      { key: 'test', kind: 'testCase', name: 'Order flow contract test', description: 'Validates order API and event persistence behavior.', ownerTeam: 'Quality Engineering', tags: ['contract', 'orders'] },
+      { key: 'infra', kind: 'infrastructureComponent', name: 'Kubernetes production namespace', description: 'Runtime deployment target for order services.', ownerTeam: 'Platform Operations', tags: ['kubernetes', 'prod'] },
+    ],
+    starterRelationships: [
+      { sourceKey: 'req', targetKey: 'api', relationship: 'depends_on', description: 'Requirement depends on API visibility.' },
+      { sourceKey: 'api', targetKey: 'svc', relationship: 'calls', description: 'API calls orchestration service.' },
+      { sourceKey: 'svc', targetKey: 'db', relationship: 'stores', description: 'Service stores order events.' },
+      { sourceKey: 'test', targetKey: 'api', relationship: 'validated_by', description: 'Contract test validates API behavior.' },
+      { sourceKey: 'svc', targetKey: 'infra', relationship: 'deployed_on', description: 'Service deploys on production namespace.' },
+    ],
+  },
+  {
+    id: 'event-driven',
+    title: 'Event-driven architecture',
+    description: 'Starter architecture for event mesh, consumers, facts, and incident impact.',
+    category: 'Enterprise Architecture',
+    recommendedMode: 'analyze',
+    suggestedWorkflow: ['build-analyze-replay'],
+    starterEntities: [
+      { key: 'req', kind: 'requirement', name: 'Real-time operational insight', description: 'Operations requires event-driven visibility across domains.', ownerTeam: 'Operations Strategy', tags: ['events', 'insight'] },
+      { key: 'svc', kind: 'service', name: 'Event Consumer Service', description: 'Consumes domain events and enriches operational state.', ownerTeam: 'Integration Platform', tags: ['consumer'] },
+      { key: 'api', kind: 'api', name: 'Event Query API', description: 'Exposes event state to analytical workspaces.', ownerTeam: 'Integration Platform', tags: ['query'] },
+      { key: 'db', kind: 'databaseTable', name: 'event_facts', description: 'Stores enriched event facts for replay and analytics.', ownerTeam: 'Data Platform', tags: ['facts'] },
+      { key: 'incident', kind: 'incident', name: 'Delayed event propagation', description: 'Incident showing impact of delayed event delivery.', ownerTeam: 'SRE', tags: ['latency'] },
+    ],
+    starterRelationships: [
+      { sourceKey: 'req', targetKey: 'svc', relationship: 'depends_on', description: 'Operational insight depends on consumer processing.' },
+      { sourceKey: 'api', targetKey: 'svc', relationship: 'calls', description: 'Query API reads consumer state.' },
+      { sourceKey: 'svc', targetKey: 'db', relationship: 'stores', description: 'Consumer stores facts.' },
+      { sourceKey: 'incident', targetKey: 'svc', relationship: 'causes', description: 'Propagation incident affects consumer behavior.' },
+    ],
+  },
+  {
+    id: 'saas-platform',
+    title: 'SaaS platform',
+    description: 'Customer workflow, tenant service, API, data, and deployment mapping.',
+    category: 'SaaS platform',
+    recommendedMode: 'build',
+    starterEntities: [
+      { key: 'req', kind: 'requirement', name: 'Tenant onboarding visibility', description: 'Teams need consistent tenant onboarding status.', ownerTeam: 'Product Operations', tags: ['tenant'] },
+      { key: 'svc', kind: 'service', name: 'Tenant Lifecycle Service', description: 'Manages tenant provisioning lifecycle.', ownerTeam: 'SaaS Platform', tags: ['tenant', 'lifecycle'] },
+      { key: 'api', kind: 'api', name: 'Tenant Admin API', description: 'Administrative API for tenant lifecycle operations.', ownerTeam: 'SaaS Platform', tags: ['admin'] },
+      { key: 'infra', kind: 'infrastructureComponent', name: 'Multi-tenant runtime cluster', description: 'Shared runtime substrate for tenant services.', ownerTeam: 'Platform Operations', tags: ['runtime'] },
+    ],
+    starterRelationships: [
+      { sourceKey: 'req', targetKey: 'api', relationship: 'depends_on', description: 'Onboarding visibility depends on admin API.' },
+      { sourceKey: 'api', targetKey: 'svc', relationship: 'calls', description: 'Admin API calls lifecycle service.' },
+      { sourceKey: 'svc', targetKey: 'infra', relationship: 'deployed_on', description: 'Lifecycle service deploys on shared runtime.' },
+    ],
+  },
+  {
+    id: 'api-platform',
+    title: 'API platform',
+    description: 'API product, backing service, data contract, and validation starter.',
+    category: 'API platform',
+    recommendedMode: 'build',
+    starterEntities: [
+      { key: 'req', kind: 'requirement', name: 'Reusable partner API', description: 'Partners need a governed, reusable enterprise API.', ownerTeam: 'Business Partnerships', tags: ['partner'] },
+      { key: 'api', kind: 'api', name: 'Partner Access API', description: 'Governed external API product.', ownerTeam: 'API Platform', tags: ['partner', 'product'] },
+      { key: 'svc', kind: 'service', name: 'Partner Entitlement Service', description: 'Controls access and entitlement decisions.', ownerTeam: 'Identity Platform', tags: ['entitlement'] },
+      { key: 'test', kind: 'testCase', name: 'Partner API policy test', description: 'Validates policy and entitlement behavior.', ownerTeam: 'Quality Engineering', tags: ['policy'] },
+    ],
+    starterRelationships: [
+      { sourceKey: 'req', targetKey: 'api', relationship: 'depends_on', description: 'Requirement depends on partner API product.' },
+      { sourceKey: 'api', targetKey: 'svc', relationship: 'calls', description: 'API calls entitlement service.' },
+      { sourceKey: 'test', targetKey: 'api', relationship: 'validated_by', description: 'Policy test validates API.' },
+    ],
+  },
+  {
+    id: 'data-platform',
+    title: 'Data platform',
+    description: 'Data product, API access, storage, and validation topology.',
+    category: 'Data platform',
+    recommendedMode: 'build',
+    starterEntities: [
+      { key: 'req', kind: 'requirement', name: 'Trusted architecture metrics', description: 'Leaders need consistent architecture metric definitions.', ownerTeam: 'Enterprise Architecture', tags: ['metrics'] },
+      { key: 'api', kind: 'api', name: 'Architecture Metrics API', description: 'Access layer for metric retrieval.', ownerTeam: 'Data Platform', tags: ['metrics'] },
+      { key: 'db', kind: 'databaseTable', name: 'architecture_metric_facts', description: 'Curated metric facts table.', ownerTeam: 'Data Platform', tags: ['facts'] },
+      { key: 'test', kind: 'testCase', name: 'Metric freshness test', description: 'Validates freshness and completeness of metric facts.', ownerTeam: 'Data Quality', tags: ['freshness'] },
+    ],
+    starterRelationships: [
+      { sourceKey: 'req', targetKey: 'api', relationship: 'depends_on', description: 'Requirement depends on metrics API.' },
+      { sourceKey: 'api', targetKey: 'db', relationship: 'stores', description: 'API reads curated metric facts.' },
+      { sourceKey: 'test', targetKey: 'db', relationship: 'validated_by', description: 'Freshness test validates metric facts.' },
+    ],
+  },
+]

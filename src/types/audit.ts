@@ -6,6 +6,7 @@ export type AuditEventAction =
   | 'simulation.ran'
   | 'validation.ran'
   | 'comparison.snapshot.created'
+  | 'domain.entity.created'
   | 'assistant.note.created'
 
 export type AuditEvent = {

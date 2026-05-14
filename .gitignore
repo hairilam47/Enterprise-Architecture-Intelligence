@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+server/dist
+server/node_modules
+server/data/workspaces/*.json
+server/data/workspace-history/*.json
 
 # Editor directories and files
 .vscode/*

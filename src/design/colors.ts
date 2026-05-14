@@ -1,0 +1,16 @@
+export const colors = {
+  canvas: '#f8fafc',
+  surfacePrimary: 'rgba(255, 255, 255, 0.88)',
+  surfaceFloating: 'rgba(255, 255, 255, 0.94)',
+  textPrimary: '#0f172a',
+  textSecondary: '#475569',
+  textMetadata: '#7c8ca3',
+  lineSubtle: 'rgba(148, 163, 184, 0.24)',
+  build: '#2563eb',
+  analyze: '#0891b2',
+  replay: '#7c3aed',
+  validation: '#d97706',
+  recovery: '#16a34a',
+  warning: '#f59e0b',
+  error: '#dc2626',
+} as const
