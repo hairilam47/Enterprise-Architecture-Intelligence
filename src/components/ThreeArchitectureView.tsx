@@ -13,6 +13,7 @@ import type { TraceHighlightState } from '../traceability/traceabilityTypes'
 import { GraphInspector } from './GraphInspector'
 import { ThreeSceneLegend } from './ThreeSceneLegend'
 import { ThreeViewToolbar } from './ThreeViewToolbar'
+import { useInteractionSurface } from '../interaction/useInteractionSurface'
 
 type ThreeArchitectureViewProps = {
   visualGraph: VisualGraph
@@ -111,6 +112,7 @@ function SpatialNodeMesh({
 }
 
 export function ThreeArchitectureView({ visualGraph, traceHighlight }: ThreeArchitectureViewProps) {
+  const { onEnter, onLeave } = useInteractionSurface('three-view')
   const [showLabels, setShowLabels] = useState(true)
   const [showWarnings, setShowWarnings] = useState(true)
   const [showBottlenecks, setShowBottlenecks] = useState(true)
@@ -170,7 +172,7 @@ export function ThreeArchitectureView({ visualGraph, traceHighlight }: ThreeArch
   )
 
   return (
-    <section className="three-view-panel panel" aria-label="Three spatial architecture view">
+    <section className="three-view-panel panel" aria-label="Three spatial architecture view" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       <div className="comparison-panel__header">
         <div>
           <p className="eyebrow">Three.js Spatial View</p>

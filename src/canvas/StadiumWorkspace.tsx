@@ -1,6 +1,7 @@
 import type { MouseEvent, PointerEvent, ReactNode, WheelEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { CameraController } from '../interaction/CameraController'
+import { interactionAuthority } from '../interaction/InteractionAuthority'
 import { WorkspaceZoneLayer } from './WorkspaceZoneLayer'
 
 type StadiumWorkspaceProps = {
@@ -108,6 +109,8 @@ export function StadiumWorkspace({
     // Plain scroll without a modifier key is intentionally ignored so the
     // user can scroll overlaid inspector panels without zooming the stage.
     if (!event.metaKey && !event.ctrlKey) return
+    // Yield to a content surface that has claimed wheel authority (D3, Three.js, etc.).
+    if (!interactionAuthority.isWheelOwner('stadium-stage')) return
     event.preventDefault()
     cameraRef.current?.wheelZoom(event.deltaY)
   }

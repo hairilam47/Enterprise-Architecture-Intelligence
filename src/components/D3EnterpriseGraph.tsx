@@ -22,6 +22,7 @@ import { GraphLegend } from './GraphLegend'
 import { GraphMiniMap } from './GraphMiniMap'
 import { GraphSearchBox } from './GraphSearchBox'
 import { GraphToolbar } from './GraphToolbar'
+import { useInteractionSurface } from '../interaction/useInteractionSurface'
 
 type D3EnterpriseGraphProps = {
   visualGraph: VisualGraph
@@ -44,6 +45,7 @@ function cloneForD3(visualGraph: VisualGraph) {
 }
 
 export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseGraphProps) {
+  const { onEnter, onLeave } = useInteractionSurface('d3-graph')
   const svgRef = useRef<SVGSVGElement | null>(null)
   const viewportRef = useRef<SVGGElement | null>(null)
   const simulationRef = useRef<d3.Simulation<D3Node, D3Edge> | null>(null)
@@ -403,7 +405,7 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
   }
 
   return (
-    <section className="d3-graph-panel panel" aria-label="D3 enterprise graph">
+    <section className="d3-graph-panel panel" aria-label="D3 enterprise graph" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       <div className="comparison-panel__header">
         <div>
           <p className="eyebrow">Sprint 4 D3 Graph</p>

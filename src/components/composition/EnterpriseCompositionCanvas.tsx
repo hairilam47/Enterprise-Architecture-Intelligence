@@ -21,6 +21,7 @@ import { CompositionToolbar } from './CompositionToolbar'
 import { ConnectionPreview } from './ConnectionPreview'
 import { GroupEditor } from './GroupEditor'
 import { RelationshipDrawer } from './RelationshipDrawer'
+import { useInteractionSurface } from '../../interaction/useInteractionSurface'
 
 type EnterpriseCompositionCanvasProps = {
   graph: EnterpriseGraph
@@ -85,6 +86,7 @@ export function EnterpriseCompositionCanvas({
   onTraceHighlightChange,
   onCompositionStateChange,
 }: EnterpriseCompositionCanvasProps) {
+  const { onEnter, onLeave } = useInteractionSurface('composition-canvas')
   const [state, setState] = useState<CompositionState>(() => initialCompositionState ?? graphToCanvasState(graph, registry, traceHighlight))
   const [dragging, setDragging] = useState<{ nodeId: string; offset: CanvasPoint } | undefined>()
   const [panning, setPanning] = useState<{ start: CanvasPoint; viewport: CompositionState['viewport'] } | undefined>()
@@ -278,7 +280,7 @@ export function EnterpriseCompositionCanvas({
     : false
 
   return (
-    <section className="composition-workspace">
+    <section className="composition-workspace" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       <CompositionToolbar
         state={state}
         onZoomIn={() => setState((current) => updateViewport(current, { zoom: Math.min(1.8, current.viewport.zoom + 0.1) }))}
