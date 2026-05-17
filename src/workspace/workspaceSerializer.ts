@@ -10,6 +10,7 @@ import type { WorkspaceSnapshot } from './workspaceSnapshots'
 import { CURRENT_SCHEMA_VERSION, migrateWorkspaceDocument } from './workspaceMigration'
 import { validateWorkspaceDocument } from './workspaceValidation'
 import type { WorkspaceDocument, WorkspaceVisualPreferences } from './workspaceDocument'
+import type { IdentityContext } from '../org/identityContext'
 
 export type CreateWorkspaceDocumentInput = {
   workspace: Workspace
@@ -25,6 +26,7 @@ export type CreateWorkspaceDocumentInput = {
   validation: ValidationResult
   visualPreferences: WorkspaceVisualPreferences
   metadata?: Partial<WorkspaceDocument['metadata']>
+  identity?: IdentityContext
 }
 
 export function createWorkspaceDocument({
@@ -41,6 +43,7 @@ export function createWorkspaceDocument({
   validation,
   visualPreferences,
   metadata,
+  identity,
 }: CreateWorkspaceDocumentInput): WorkspaceDocument {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -51,11 +54,14 @@ export function createWorkspaceDocument({
     createdAt: history.at(-1)?.createdAt ?? workspace.updatedAt,
     updatedAt: workspace.updatedAt,
     owner: {
-      displayName: 'Local Workspace Owner',
+      userId: identity?.userId,
+      displayName: identity?.displayName ?? 'Local Workspace Owner',
     },
     organizationContext: {
-      organizationId: workspace.organizationId,
-      organizationName: 'Northstar Enterprise',
+      organizationId: identity?.organizationId ?? workspace.organizationId,
+      organizationName: identity?.organizationName ?? 'Northstar Enterprise',
+      departmentId: identity?.departmentId,
+      teamId: identity?.teamId,
     },
     layeredArchitectureState: structuredClone(workspace),
     domainRegistryState: structuredClone(domainRegistry),

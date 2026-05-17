@@ -122,6 +122,7 @@ import type { WorkflowMode, WorkflowRuntimeContext } from '../workflow/workflowT
 import { workspaceTemplates } from '../templates/starterWorkspaceFactory'
 import { applyWorkspaceTemplate, getWorkspaceTemplate } from '../templates/starterWorkspaceFactory'
 import { analyzeWorkspaceHealth } from '../intelligence/workspaceHealth'
+import { useIdentity } from '../org/useIdentity'
 
 const initialWorkspace: Workspace = {
   id: 'workspace-enterprise-intelligence',
@@ -142,6 +143,7 @@ const initialWorkspace: Workspace = {
 }
 
 export function LayeredWorkspace() {
+  const { identity } = useIdentity()
   const { workspaceService } = useWorkspaceService()
   const navigationMemory = useMemo(() => loadNavigationMemory(), [])
   const [workspace, setWorkspace] = useState<Workspace>(initialWorkspace)
@@ -244,8 +246,10 @@ export function LayeredWorkspace() {
         workspaceSnapshots: editorState.snapshots.snapshots,
         workspaceCheckpoints: checkpointState.checkpoints,
         editorEvents: editorState.events,
+        identity,
       }),
     [
+      identity,
       workspace,
       domainRegistry,
       effectiveCompositionState,
