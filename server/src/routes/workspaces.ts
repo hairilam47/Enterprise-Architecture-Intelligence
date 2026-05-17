@@ -94,13 +94,24 @@ workspacesRouter.get('/:id', async (request, response, next) => {
 
 workspacesRouter.put('/:id', async (request, response, next) => {
   try {
-    const validation = validateWorkspaceDocument(request.body)
+    const body = request.body as WorkspaceDocument
+    if (body.workspaceId && body.workspaceId !== request.params.id) {
+      response.status(400).json({
+        error: {
+          type: 'validation_error',
+          message: `Body workspaceId "${body.workspaceId}" does not match URL parameter "${request.params.id}".`,
+        },
+      })
+      return
+    }
+
+    const validation = validateWorkspaceDocument(body)
     if (!validation.valid) {
       response.status(400).json(validationError(validation.errors, validation.warnings))
       return
     }
 
-    const document = { ...(request.body as WorkspaceDocument), workspaceId: request.params.id }
+    const document = { ...body, workspaceId: request.params.id }
     await validateAndSaveWorkspace(document, validation.warnings, 200, response)
   } catch (error) {
     next(error)
