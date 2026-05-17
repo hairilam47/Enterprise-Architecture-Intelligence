@@ -52,8 +52,6 @@ export function StadiumWorkspace({
     // Attach after mount so contentRef.current is available.
     camera.attach(contentRef.current)
 
-    // Listen for zoom changes that originate from button clicks or reset
-    // (NOT from wheel ticks — those skip the notifyZoom path for perf).
     const unsub = camera.onZoomChange(zoom => {
       setZoomPercent(Math.round(zoom * 100))
     })
@@ -117,17 +115,11 @@ export function StadiumWorkspace({
   // ─── Toolbar helpers ────────────────────────────────────────────────────────
 
   function handleZoomOut() {
-    const camera = cameraRef.current
-    if (!camera) return
-    camera.stepZoom(-1)
-    setZoomPercent(Math.round(camera.getZoom() * 100))
+    cameraRef.current?.stepZoom(-1)
   }
 
   function handleZoomIn() {
-    const camera = cameraRef.current
-    if (!camera) return
-    camera.stepZoom(1)
-    setZoomPercent(Math.round(camera.getZoom() * 100))
+    cameraRef.current?.stepZoom(1)
   }
 
   function handleReset() {
