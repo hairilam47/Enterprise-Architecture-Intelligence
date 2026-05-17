@@ -327,6 +327,7 @@ export function EnterpriseCompositionCanvas({
             }}
             onWheel={(event) => {
               event.preventDefault()
+              event.stopPropagation()
               const direction = event.deltaY > 0 ? -0.08 : 0.08
               setState((current) => updateViewport(current, { zoom: Math.min(1.8, Math.max(0.55, current.viewport.zoom + direction)) }))
             }}

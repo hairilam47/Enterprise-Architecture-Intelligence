@@ -3240,7 +3240,7 @@ meter {
 .stadium-workspace__surface {
   position: relative;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden; /* was: overflow: auto — killed by the authority rule anyway but make it explicit */
   cursor: grab;
   touch-action: none;
 }
@@ -4449,4 +4449,49 @@ meter {
   .studio-shell.is-bottom-collapsed {
     grid-template-rows: 64px minmax(0, 1fr);
   }
+}
+
+
+/* =============================================================================
+ * Sprint 22A.2 — Interaction authority CSS additions
+ * ============================================================================= */
+
+/* ── 1. Overlay pointer-event containment ────────────────────────────────────
+ * WorkspaceShell adds `managed-overlay--active` or `managed-overlay--idle`
+ * to each overlay wrapper div.  Idle overlays cannot intercept canvas pointer
+ * events even if their React node renders non-null content.
+ *
+ * Belt-and-suspenders: WorkspaceShell also sets inline style={{ pointerEvents }}
+ * on each wrapper.  Both must agree; inline style wins on specificity.
+ */
+.managed-overlay--idle {
+  pointer-events: none !important; /* belt-and-suspenders; inline style is the primary gate */
+}
+
+.managed-overlay--active {
+  pointer-events: auto;
+}
+
+
+/* ── 2. Content transition — remove during camera control ────────────────────
+ * The previous Sprint 22A content rule had `transition: transform 120ms ease`
+ * which caused perceived lag during continuous pan because every RAF frame
+ * would smoothly chase the *previous* frame's position.
+ *
+ * CameraController.attach() already removes the transition via inline style.
+ * This CSS ensures the base rule also doesn't contribute transition behaviour.
+ */
+.studio-shell[data-layout-authority='workspace-shell'] .stadium-workspace__content {
+  transition: none; /* was: transition: transform 120ms ease */
+}
+
+
+/* ── 3. Touch-action hardening ───────────────────────────────────────────────
+ * Belt-and-suspenders on the surface; CameraController doesn't touch this.
+ * `touch-action: none` prevents the browser from claiming the touch gesture
+ * before the pointer events fire.
+ */
+.studio-shell[data-layout-authority='workspace-shell'] .stadium-workspace__surface {
+  touch-action: none;
+  overscroll-behavior: none;
 }
