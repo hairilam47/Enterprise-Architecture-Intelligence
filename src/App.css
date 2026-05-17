@@ -1054,6 +1054,18 @@ meter {
   stroke-width: 3;
 }
 
+.d3-node.is-impacted .d3-node-ring {
+  stroke: #7c3aed;
+  stroke-width: 3;
+  stroke-dasharray: 5 3;
+}
+
+.d3-node.is-missing-link .d3-node-ring {
+  stroke: #ea580c;
+  stroke-width: 2;
+  stroke-dasharray: 3 2;
+}
+
 .d3-node-type {
   fill: #ffffff;
   font-size: 10px;

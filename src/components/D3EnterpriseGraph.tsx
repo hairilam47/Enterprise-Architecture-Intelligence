@@ -185,6 +185,14 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     () => new Set(activePath?.edgeIds.map((edgeId) => `visual:${edgeId}`) ?? []),
     [activePath],
   )
+  const impactedNodeIds = useMemo(
+    () => new Set((traceHighlight?.impactedEntityIds ?? []).map((id) => `visual:${id}`)),
+    [traceHighlight?.impactedEntityIds],
+  )
+  const missingLinkIds = useMemo(
+    () => new Set((traceHighlight?.missingLinkNodeIds ?? []).map((id) => `visual:${id}`)),
+    [traceHighlight?.missingLinkNodeIds],
+  )
 
   useEffect(() => {
     const svgElement = svgRef.current
@@ -303,6 +311,8 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
       .classed('is-active-path', (node) => activeNodeIds.has(node.id))
       .classed('is-warning', (node) => warningNodeIds.has(node.id))
       .classed('is-bottleneck', (node) => bottleneckNodeIds.has(node.id))
+      .classed('is-impacted', (node) => impactedNodeIds.has(node.id))
+      .classed('is-missing-link', (node) => missingLinkIds.has(node.id))
 
     simulation.on('tick', () => {
       edgeLayer
@@ -336,6 +346,8 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     activeNodeIds,
     bottleneckNodeIds,
     focusedGraph,
+    impactedNodeIds,
+    missingLinkIds,
     selectedNodeId,
     shouldShowLabels,
     warningNodeIds,
