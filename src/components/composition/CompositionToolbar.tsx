@@ -15,6 +15,7 @@ type CompositionToolbarProps = {
   onRedo: () => void
   onDeleteSelected: () => void
   onDuplicateSelected: () => void
+  onExportPng?: () => void
 }
 
 export function CompositionToolbar({
@@ -32,6 +33,7 @@ export function CompositionToolbar({
   onRedo,
   onDeleteSelected,
   onDuplicateSelected,
+  onExportPng,
 }: CompositionToolbarProps) {
   const hasSelection = state.selection.selectedNodeIds.length > 0 || !!state.selection.selectedEdgeId
 
@@ -60,6 +62,12 @@ export function CompositionToolbar({
         <button type="button" onClick={onGroupSelection} disabled={state.selection.selectedNodeIds.length === 0}>
           Group selection
         </button>
+        {onExportPng && (
+          <>
+            <span className="composition-toolbar__divider" />
+            <button type="button" onClick={onExportPng} aria-label="Export canvas as PNG" title="Export PNG">↓ PNG</button>
+          </>
+        )}
       </div>
     </div>
   )

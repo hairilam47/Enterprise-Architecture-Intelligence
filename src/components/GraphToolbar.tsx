@@ -13,6 +13,8 @@ type GraphToolbarProps = {
   onShowWarningsChange: (show: boolean) => void
   onShowBottlenecksChange: (show: boolean) => void
   onResetView: () => void
+  onExportSvg: () => void
+  onResetPositions: () => void
 }
 
 const focusModes: GraphFocusMode[] = [
@@ -37,6 +39,8 @@ export function GraphToolbar({
   onShowWarningsChange,
   onShowBottlenecksChange,
   onResetView,
+  onExportSvg,
+  onResetPositions,
 }: GraphToolbarProps) {
   return (
     <div className="graph-toolbar" aria-label="Graph toolbar">
@@ -88,9 +92,9 @@ export function GraphToolbar({
         Bottlenecks
       </label>
 
-      <button type="button" onClick={onResetView}>
-        Reset view
-      </button>
+      <button type="button" onClick={onResetView}>Reset view</button>
+      <button type="button" onClick={onResetPositions} title="Reset pinned node positions">Reset positions</button>
+      <button type="button" onClick={onExportSvg} title="Export graph as SVG file">↓ SVG</button>
     </div>
   )
 }

@@ -46,14 +46,47 @@ function CameraActions({
   layerYPosition: number
 }) {
   const controls = useRef<OrbitControlsImpl | null>(null)
+  const animRef = useRef<number>()
   const { camera } = useThree()
 
   useEffect(() => {
     if (!controls.current) return
     const preset = getCameraPreset(cameraPreset, selectedNode, layerYPosition)
-    camera.position.set(...preset.position)
-    controls.current.target.set(...preset.target)
-    controls.current.update()
+    const [px, py, pz] = preset.position
+    const [tx, ty, tz] = preset.target
+
+    const fromPos = { x: camera.position.x, y: camera.position.y, z: camera.position.z }
+    const fromTarget = {
+      x: controls.current.target.x,
+      y: controls.current.target.y,
+      z: controls.current.target.z,
+    }
+
+    const startTime = performance.now()
+    const DURATION = 420
+
+    function ease(t: number) {
+      return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+    }
+    function lerp(a: number, b: number, t: number) {
+      return a + (b - a) * t
+    }
+
+    function tick() {
+      const raw = Math.min((performance.now() - startTime) / DURATION, 1)
+      const e = ease(raw)
+      camera.position.set(lerp(fromPos.x, px, e), lerp(fromPos.y, py, e), lerp(fromPos.z, pz, e))
+      controls.current!.target.set(lerp(fromTarget.x, tx, e), lerp(fromTarget.y, ty, e), lerp(fromTarget.z, tz, e))
+      controls.current!.update()
+      if (raw < 1) animRef.current = requestAnimationFrame(tick)
+    }
+
+    if (animRef.current) cancelAnimationFrame(animRef.current)
+    animRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current)
+    }
   }, [camera, cameraPreset, focusSignal, layerYPosition, selectedNode])
 
   return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} />

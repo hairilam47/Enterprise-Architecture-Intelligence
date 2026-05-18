@@ -23,6 +23,8 @@ import { GroupEditor } from './GroupEditor'
 import { RelationshipDrawer } from './RelationshipDrawer'
 import { useInteractionSurface } from '../../interaction/useInteractionSurface'
 import { useCanvasHistory } from '../../composition/useCanvasHistory'
+import { showToast } from '../../toast/toastService'
+import { downloadSvgAsPng } from '../../utils/exportCanvas'
 
 type CanvasGesture =
   | { kind: 'undecided'; clientStart: CanvasPoint; canvasStart: CanvasPoint }
@@ -290,6 +292,7 @@ export function EnterpriseCompositionCanvas({
     setState((current) => removeSelectedItems(current))
     setCanUndo(true)
     setCanRedo(false)
+    showToast('Deleted', 'success')
   }
 
   function duplicateSelected() {
@@ -298,6 +301,7 @@ export function EnterpriseCompositionCanvas({
     setState((current) => duplicateNodes(current, current.selection.selectedNodeIds))
     setCanUndo(true)
     setCanRedo(false)
+    showToast('Duplicated', 'success')
   }
 
   function handleUndo() {
@@ -306,6 +310,7 @@ export function EnterpriseCompositionCanvas({
     setState(previous)
     setCanUndo(history.canUndo())
     setCanRedo(history.canRedo())
+    showToast('Undone', 'info')
   }
 
   function handleRedo() {
@@ -314,6 +319,14 @@ export function EnterpriseCompositionCanvas({
     setState(next)
     setCanUndo(history.canUndo())
     setCanRedo(history.canRedo())
+    showToast('Redone', 'info')
+  }
+
+  function handleExportPng() {
+    if (canvasRef.current) {
+      downloadSvgAsPng(canvasRef.current, 'enterprise-canvas.png')
+      showToast('Canvas exported as PNG', 'success')
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -349,6 +362,7 @@ export function EnterpriseCompositionCanvas({
       setState((current) => updateNodeLabel(current, nodeId, trimmed))
       setCanUndo(true)
       setCanRedo(false)
+      showToast('Renamed', 'success')
     }
     setEditingNodeId(undefined)
   }
@@ -435,6 +449,7 @@ export function EnterpriseCompositionCanvas({
         onRedo={handleRedo}
         onDeleteSelected={deleteSelected}
         onDuplicateSelected={duplicateSelected}
+        onExportPng={handleExportPng}
       />
 
       <div className="composition-layout">

@@ -23,6 +23,8 @@ import { GraphMiniMap } from './GraphMiniMap'
 import { GraphSearchBox } from './GraphSearchBox'
 import { GraphToolbar } from './GraphToolbar'
 import { useInteractionSurface } from '../interaction/useInteractionSurface'
+import { downloadSvg } from '../utils/exportCanvas'
+import { showToast } from '../toast/toastService'
 
 type D3EnterpriseGraphProps = {
   visualGraph: VisualGraph
@@ -50,6 +52,7 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
   const viewportRef = useRef<SVGGElement | null>(null)
   const simulationRef = useRef<d3.Simulation<D3Node, D3Edge> | null>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  const nodePositions = useRef<Map<string, { x: number; y: number }>>(new Map())
   const [focusMode, setFocusMode] = useState<GraphFocusMode>('full_graph')
   const [layerFilter, setLayerFilter] = useState('')
   const [showLabels, setShowLabels] = useState(true)
@@ -62,7 +65,9 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedNodeId, setSelectedNodeId] = useState(visualGraph.nodes[0]?.id)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>()
+  const [hoverPeekPos, setHoverPeekPos] = useState<{ x: number; y: number } | undefined>()
   const [highlightedPath, setHighlightedPath] = useState<GraphTraversalResult | undefined>()
+  const [positionResetSignal, setPositionResetSignal] = useState(0)
   const selectedNode = visualGraph.nodes.find((node) => node.id === selectedNodeId)
 
   const filteredGraph = useMemo(
@@ -225,6 +230,18 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
 
     const { nodes, edges } = cloneForD3(focusedGraph)
     const nodeById = new Map(nodes.map((node) => [node.id, node]))
+
+    // Restore persisted drag positions
+    nodes.forEach((node) => {
+      const saved = nodePositions.current.get(node.id)
+      if (saved) {
+        node.fx = saved.x
+        node.fy = saved.y
+        node.x = saved.x
+        node.y = saved.y
+      }
+    })
+
     const viewport = d3.select(viewportRef.current)
     const edgeLayer = viewport.select<SVGGElement>('.d3-edge-layer')
     const labelLayer = viewport.select<SVGGElement>('.d3-label-layer')
@@ -285,8 +302,12 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
             if (!event.active) {
               simulation.alphaTarget(0)
             }
-            node.fx = undefined
-            node.fy = undefined
+            // Persist position — node stays where user dropped it
+            const px = node.x ?? event.x
+            const py = node.y ?? event.y
+            nodePositions.current.set(node.id, { x: px, y: py })
+            node.fx = px
+            node.fy = py
           }),
       )
 
@@ -348,6 +369,7 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     focusedGraph,
     impactedNodeIds,
     missingLinkIds,
+    positionResetSignal,
     selectedNodeId,
     shouldShowLabels,
     warningNodeIds,
@@ -366,6 +388,19 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
       .transition()
       .duration(250)
       .call(zoom.transform, d3.zoomIdentity)
+  }
+
+  function handleResetPositions() {
+    nodePositions.current.clear()
+    setPositionResetSignal((n) => n + 1)
+    showToast('Node positions reset', 'info')
+  }
+
+  function handleExportSvg() {
+    if (svgRef.current) {
+      downloadSvg(svgRef.current, 'enterprise-graph.svg')
+      showToast('Graph exported as SVG', 'success')
+    }
   }
 
   function focusCriticalPath() {
@@ -416,6 +451,9 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     setFocusMode('selected_neighborhood')
   }
 
+  const hoveredVisualNode = hoveredNodeId ? focusedGraph.nodes.find((n) => n.id === hoveredNodeId) : undefined
+  const hoveredDepCount = hoverPath ? Math.max(0, hoverPath.nodeIds.length - 1) : 0
+
   return (
     <section className="d3-graph-panel panel" aria-label="D3 enterprise graph" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       <div className="comparison-panel__header">
@@ -441,6 +479,8 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
         onShowWarningsChange={setShowWarnings}
         onShowBottlenecksChange={setShowBottlenecks}
         onResetView={handleResetView}
+        onExportSvg={handleExportSvg}
+        onResetPositions={handleResetPositions}
       />
       <GraphFocusControls
         onFocusModeChange={(mode) => {
@@ -468,18 +508,44 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
             onQueryChange={setSearchQuery}
             onSelectResult={handleSearchSelect}
           />
-          <svg ref={svgRef} className="d3-enterprise-canvas" viewBox={`0 0 ${width} ${height}`} role="img">
-            <defs>
-              <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
-              </marker>
-            </defs>
-            <g ref={viewportRef}>
-              <g className="d3-edge-layer" />
-              <g className="d3-label-layer" />
-              <g className="d3-node-layer" />
-            </g>
-          </svg>
+          <div
+            style={{ position: 'relative' }}
+            onMouseMove={(e) => {
+              if (hoveredNodeId) {
+                const rect = e.currentTarget.getBoundingClientRect()
+                setHoverPeekPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+              }
+            }}
+            onMouseLeave={() => setHoverPeekPos(undefined)}
+          >
+            <svg ref={svgRef} className="d3-enterprise-canvas" viewBox={`0 0 ${width} ${height}`} role="img">
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+                </marker>
+              </defs>
+              <g ref={viewportRef}>
+                <g className="d3-edge-layer" />
+                <g className="d3-label-layer" />
+                <g className="d3-node-layer" />
+              </g>
+            </svg>
+
+            {/* Hover peek card */}
+            {hoveredVisualNode && hoverPeekPos && (
+              <div
+                className="d3-hover-peek"
+                style={{ left: hoverPeekPos.x + 14, top: hoverPeekPos.y - 28 }}
+              >
+                <div className="d3-hover-peek__name">{hoveredVisualNode.label}</div>
+                <div className="d3-hover-peek__type">{hoveredVisualNode.type}</div>
+                {hoveredDepCount > 0 && (
+                  <div className="d3-hover-peek__deps">{hoveredDepCount} connected nodes</div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="overlay-actions">
             {[...warningNodeIds].map((nodeId) => {
               const node = visualGraph.nodes.find((item) => item.id === nodeId)
