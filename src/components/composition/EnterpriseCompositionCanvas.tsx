@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, KeyboardEvent, PointerEvent } from 'react'
 import type { CompositionNodeTemplate, CompositionState, CanvasPoint } from '../../composition/compositionTypes'
-import { addCanvasNode, duplicateNodes, removeNode, removeSelectedItems, selectNode, setHoveredNode, toggleSnapToGrid, updateCanvasNodePosition, updateViewport } from '../../composition/compositionState'
+import { addCanvasNode, duplicateNodes, removeNode, removeSelectedItems, selectNode, selectNodesInRect, setHoveredNode, toggleSnapToGrid, updateCanvasNodePosition, updateNodeLabel, updateViewport } from '../../composition/compositionState'
 import { createCompositionDebugSummary } from '../../composition/compositionDebug'
 import { validateComposition } from '../../composition/compositionValidation'
 import { validateConnection } from '../../composition/connectionRules'
@@ -23,6 +23,13 @@ import { GroupEditor } from './GroupEditor'
 import { RelationshipDrawer } from './RelationshipDrawer'
 import { useInteractionSurface } from '../../interaction/useInteractionSurface'
 import { useCanvasHistory } from '../../composition/useCanvasHistory'
+
+type CanvasGesture =
+  | { kind: 'undecided'; clientStart: CanvasPoint; canvasStart: CanvasPoint }
+  | { kind: 'panning'; clientStart: CanvasPoint; viewport: CompositionState['viewport'] }
+  | { kind: 'marquee'; canvasStart: CanvasPoint; canvasCurrent: CanvasPoint }
+
+type ContextMenuState = { nodeId: string; clientX: number; clientY: number }
 
 type EnterpriseCompositionCanvasProps = {
   graph: EnterpriseGraph
@@ -62,7 +69,6 @@ function createContainerNode(template: CompositionNodeTemplate, position: Canvas
 
 function createDraftFromTemplate(template: CompositionNodeTemplate): DomainEntityDraft | undefined {
   if (!template.domainKind) return undefined
-
   return {
     kind: template.domainKind,
     name: `New ${template.label}`,
@@ -93,10 +99,13 @@ export function EnterpriseCompositionCanvas({
   const [canRedo, setCanRedo] = useState(false)
   const [state, setState] = useState<CompositionState>(() => initialCompositionState ?? graphToCanvasState(graph, registry, traceHighlight))
   const [dragging, setDragging] = useState<{ nodeId: string; offset: CanvasPoint } | undefined>()
-  const [panning, setPanning] = useState<{ start: CanvasPoint; viewport: CompositionState['viewport'] } | undefined>()
+  const [canvasGesture, setCanvasGesture] = useState<CanvasGesture | undefined>()
+  const [isPortDragging, setIsPortDragging] = useState(false)
   const [relationshipDraft, setRelationshipDraft] = useState<PendingRelationship | undefined>()
   const [relationshipType, setRelationshipType] = useState<EnterpriseRelationshipType>('depends_on')
   const [pointerCanvasPoint, setPointerCanvasPoint] = useState<CanvasPoint | undefined>()
+  const [editingNodeId, setEditingNodeId] = useState<string | undefined>()
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | undefined>()
   const canvasRef = useRef<SVGSVGElement | null>(null)
 
   useEffect(() => {
@@ -214,13 +223,31 @@ export function EnterpriseCompositionCanvas({
       return
     }
 
-    if (panning) {
+    if (canvasGesture?.kind === 'undecided') {
+      const dx = event.clientX - canvasGesture.clientStart.x
+      const dy = event.clientY - canvasGesture.clientStart.y
+      if (Math.sqrt(dx * dx + dy * dy) > 8) {
+        if (event.altKey) {
+          setCanvasGesture({ kind: 'panning', clientStart: canvasGesture.clientStart, viewport: state.viewport })
+        } else {
+          setCanvasGesture({ kind: 'marquee', canvasStart: canvasGesture.canvasStart, canvasCurrent: currentPoint })
+        }
+      }
+      return
+    }
+
+    if (canvasGesture?.kind === 'panning') {
       setState((current) =>
         updateViewport(current, {
-          x: panning.viewport.x + event.clientX - panning.start.x,
-          y: panning.viewport.y + event.clientY - panning.start.y,
+          x: canvasGesture.viewport.x + event.clientX - canvasGesture.clientStart.x,
+          y: canvasGesture.viewport.y + event.clientY - canvasGesture.clientStart.y,
         }),
       )
+      return
+    }
+
+    if (canvasGesture?.kind === 'marquee') {
+      setCanvasGesture({ ...canvasGesture, canvasCurrent: currentPoint })
     }
   }
 
@@ -250,6 +277,7 @@ export function EnterpriseCompositionCanvas({
 
   function cancelConnection() {
     setRelationshipDraft(undefined)
+    setIsPortDragging(false)
     setState((current) => ({
       ...current,
       selection: { ...current.selection, pendingConnection: undefined },
@@ -291,6 +319,7 @@ export function EnterpriseCompositionCanvas({
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     const hasModifier = event.ctrlKey || event.metaKey
     if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (editingNodeId) return
       event.preventDefault()
       deleteSelected()
     } else if (hasModifier && event.shiftKey && event.key.toLowerCase() === 'z') {
@@ -305,7 +334,28 @@ export function EnterpriseCompositionCanvas({
     } else if (hasModifier && event.key.toLowerCase() === 'd') {
       event.preventDefault()
       duplicateSelected()
+    } else if (event.key === 'Escape') {
+      cancelConnection()
+      setEditingNodeId(undefined)
+      setContextMenu(undefined)
     }
+  }
+
+  function handleLabelCommit(nodeId: string, label: string) {
+    const trimmed = label.trim()
+    const original = state.nodes.find((n) => n.id === nodeId)?.label
+    if (trimmed && trimmed !== original) {
+      history.push(state)
+      setState((current) => updateNodeLabel(current, nodeId, trimmed))
+      setCanUndo(true)
+      setCanRedo(false)
+    }
+    setEditingNodeId(undefined)
+  }
+
+  function handleNodeContextMenu(nodeId: string, clientX: number, clientY: number) {
+    setContextMenu({ nodeId, clientX, clientY })
+    setState((current) => selectNode(current, nodeId))
   }
 
   function handleSelectNode(nodeId: string, append = false) {
@@ -344,6 +394,8 @@ export function EnterpriseCompositionCanvas({
   const canCreateGraphRelationship = relationshipDraft
     ? canAuthorGraphRelationship(state, relationshipDraft.sourceNodeId, relationshipDraft.targetNodeId)
     : false
+
+  const marquee = canvasGesture?.kind === 'marquee' ? canvasGesture : undefined
 
   return (
     <section
@@ -398,7 +450,49 @@ export function EnterpriseCompositionCanvas({
             onDragOver={(event) => event.preventDefault()}
             onPointerDown={(event) => {
               if (event.target === canvasRef.current) {
-                setPanning({ start: { x: event.clientX, y: event.clientY }, viewport: state.viewport })
+                const canvasStart = clientToCanvas({ x: event.clientX, y: event.clientY })
+                setCanvasGesture({
+                  kind: 'undecided',
+                  clientStart: { x: event.clientX, y: event.clientY },
+                  canvasStart,
+                })
+                setContextMenu(undefined)
+                setEditingNodeId(undefined)
+              }
+            }}
+            onPointerMove={handleCanvasPointerMove}
+            onPointerUp={() => {
+              // Auto-complete port drag if releasing over a valid target node
+              if (
+                isPortDragging &&
+                state.selection.pendingConnection?.sourceNodeId &&
+                state.selection.hoveredNodeId &&
+                state.selection.hoveredNodeId !== state.selection.pendingConnection.sourceNodeId
+              ) {
+                setRelationshipDraft({
+                  sourceNodeId: state.selection.pendingConnection.sourceNodeId,
+                  targetNodeId: state.selection.hoveredNodeId,
+                })
+                setState((current) => ({
+                  ...current,
+                  selection: { ...current.selection, pendingConnection: undefined },
+                }))
+              }
+              setIsPortDragging(false)
+
+              // Finalise marquee selection
+              if (canvasGesture?.kind === 'marquee') {
+                const rect = {
+                  x: canvasGesture.canvasStart.x,
+                  y: canvasGesture.canvasStart.y,
+                  width: canvasGesture.canvasCurrent.x - canvasGesture.canvasStart.x,
+                  height: canvasGesture.canvasCurrent.y - canvasGesture.canvasStart.y,
+                }
+                if (Math.abs(rect.width) > 4 || Math.abs(rect.height) > 4) {
+                  setState((current) => selectNodesInRect(current, rect))
+                }
+              } else if (canvasGesture?.kind === 'undecided') {
+                // Treat as a click on empty canvas — clear selection
                 setState((current) => ({
                   ...current,
                   selection: {
@@ -409,15 +503,14 @@ export function EnterpriseCompositionCanvas({
                   },
                 }))
               }
-            }}
-            onPointerMove={handleCanvasPointerMove}
-            onPointerUp={() => {
+
               setDragging(undefined)
-              setPanning(undefined)
+              setCanvasGesture(undefined)
             }}
             onPointerLeave={() => {
               setDragging(undefined)
-              setPanning(undefined)
+              setCanvasGesture(undefined)
+              setIsPortDragging(false)
               setPointerCanvasPoint(undefined)
             }}
             onWheel={(event) => {
@@ -525,6 +618,7 @@ export function EnterpriseCompositionCanvas({
                   node={node}
                   isHovered={state.selection.hoveredNodeId === node.id}
                   isConnected={hoveredDependencies.has(node.id)}
+                  isEditing={editingNodeId === node.id}
                   onPointerDown={(event) => handleNodePointerDown(event, node.id)}
                   onPointerEnter={() => setState((current) => setHoveredNode(current, node.id))}
                   onPointerLeave={() => setState((current) => setHoveredNode(current, undefined))}
@@ -532,6 +626,9 @@ export function EnterpriseCompositionCanvas({
                     event.stopPropagation()
                     handleSelectNode(node.id, event.shiftKey)
                   }}
+                  onDoubleClick={() => setEditingNodeId(node.id)}
+                  onLabelCommit={(label) => handleLabelCommit(node.id, label)}
+                  onContextMenuRequest={(clientX, clientY) => handleNodeContextMenu(node.id, clientX, clientY)}
                   onStartConnection={() =>
                     setState((current) => ({
                       ...current,
@@ -544,6 +641,13 @@ export function EnterpriseCompositionCanvas({
                       setRelationshipDraft({ sourceNodeId, targetNodeId: node.id })
                     }
                   }}
+                  onPortDragStart={() => {
+                    setState((current) => ({
+                      ...current,
+                      selection: { ...current.selection, pendingConnection: { sourceNodeId: node.id } },
+                    }))
+                    setIsPortDragging(true)
+                  }}
                   onDelete={() => {
                     history.push(state)
                     setState((current) => removeNode(current, node.id))
@@ -552,6 +656,18 @@ export function EnterpriseCompositionCanvas({
                   }}
                 />
               ))}
+
+              {/* Marquee selection rectangle */}
+              {marquee && (
+                <rect
+                  className="composition-marquee"
+                  x={Math.min(marquee.canvasStart.x, marquee.canvasCurrent.x)}
+                  y={Math.min(marquee.canvasStart.y, marquee.canvasCurrent.y)}
+                  width={Math.abs(marquee.canvasCurrent.x - marquee.canvasStart.x)}
+                  height={Math.abs(marquee.canvasCurrent.y - marquee.canvasStart.y)}
+                  pointerEvents="none"
+                />
+              )}
             </g>
           </svg>
 
@@ -559,7 +675,10 @@ export function EnterpriseCompositionCanvas({
             <span>{state.nodes.length} nodes</span>
             <span>{state.edges.length} relationships</span>
             <span>{state.groups.length} groups</span>
-            <span>{selectedNode ? `Selected: ${selectedNode.label}` : 'Select or drag a component'}</span>
+            {state.selection.selectedNodeIds.length > 1
+              ? <span>{state.selection.selectedNodeIds.length} selected</span>
+              : <span>{selectedNode ? `Selected: ${selectedNode.label}` : 'Drag to marquee-select · Alt+drag to pan'}</span>
+            }
           </div>
         </div>
 
@@ -593,6 +712,53 @@ export function EnterpriseCompositionCanvas({
         onConfirm={handleRelationshipConfirm}
         onCancel={cancelConnection}
       />
+
+      {/* Node context menu */}
+      {contextMenu !== undefined && (
+        <>
+          <div className="composition-context-menu-backdrop" onClick={() => setContextMenu(undefined)} />
+          <div className="composition-context-menu" style={{ left: contextMenu.clientX, top: contextMenu.clientY }}>
+            <button
+              type="button"
+              onClick={() => { setEditingNodeId(contextMenu.nodeId); setContextMenu(undefined) }}
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => { duplicateSelected(); setContextMenu(undefined) }}
+            >
+              Duplicate
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setState((current) => ({
+                  ...current,
+                  selection: { ...current.selection, pendingConnection: { sourceNodeId: contextMenu.nodeId } },
+                }))
+                setContextMenu(undefined)
+              }}
+            >
+              Start connection
+            </button>
+            <hr className="composition-context-menu__divider" />
+            <button
+              type="button"
+              className="is-danger"
+              onClick={() => {
+                history.push(state)
+                setState((current) => removeNode(current, contextMenu.nodeId))
+                setCanUndo(true)
+                setCanRedo(false)
+                setContextMenu(undefined)
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="panel composition-sync-panel">
         <p className="eyebrow">Canvas to graph sync</p>

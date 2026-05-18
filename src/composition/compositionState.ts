@@ -109,3 +109,31 @@ export function duplicateNodes(state: CompositionState, nodeIds: string[]): Comp
   }
 }
 
+export function updateNodeLabel(state: CompositionState, nodeId: string, label: string): CompositionState {
+  return {
+    ...state,
+    nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, label } : n)),
+  }
+}
+
+export function selectNodesInRect(
+  state: CompositionState,
+  rect: { x: number; y: number; width: number; height: number },
+): CompositionState {
+  const left = rect.width >= 0 ? rect.x : rect.x + rect.width
+  const top = rect.height >= 0 ? rect.y : rect.y + rect.height
+  const right = left + Math.abs(rect.width)
+  const bottom = top + Math.abs(rect.height)
+  const selectedNodeIds = state.nodes
+    .filter((n) => n.position.x < right && n.position.x + n.size.width > left && n.position.y < bottom && n.position.y + n.size.height > top)
+    .map((n) => n.id)
+  return {
+    ...state,
+    nodes: state.nodes.map((n) => ({
+      ...n,
+      status: selectedNodeIds.includes(n.id) ? 'selected' : n.status === 'selected' ? 'normal' : n.status,
+    })),
+    selection: { ...state.selection, selectedNodeIds, selectedEdgeId: undefined, selectedGroupId: undefined },
+  }
+}
+
