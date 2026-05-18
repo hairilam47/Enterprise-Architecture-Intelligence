@@ -24,6 +24,7 @@ type CanvasNodeCardProps = {
   onClick: (event: MouseEvent<SVGGElement>) => void
   onStartConnection: () => void
   onFinishConnection: () => void
+  onDelete?: () => void
 }
 
 export function CanvasNodeCard({
@@ -36,6 +37,7 @@ export function CanvasNodeCard({
   onClick,
   onStartConnection,
   onFinishConnection,
+  onDelete,
 }: CanvasNodeCardProps) {
   const classes = [
     'composition-node',
@@ -88,6 +90,21 @@ export function CanvasNodeCard({
           link
         </button>
       </foreignObject>
+      {isHovered && onDelete && (
+        <foreignObject x={node.size.width - 28} y={4} width="24" height="24">
+          <button
+            type="button"
+            className="composition-node-delete"
+            aria-label="Delete node"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDelete()
+            }}
+          >
+            ✕
+          </button>
+        </foreignObject>
+      )}
     </g>
   )
 }

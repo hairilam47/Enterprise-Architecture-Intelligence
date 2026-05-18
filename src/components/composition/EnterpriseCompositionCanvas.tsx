@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, PointerEvent } from 'react'
+import type { DragEvent, KeyboardEvent, PointerEvent } from 'react'
 import type { CompositionNodeTemplate, CompositionState, CanvasPoint } from '../../composition/compositionTypes'
-import { addCanvasNode, selectNode, setHoveredNode, toggleSnapToGrid, updateCanvasNodePosition, updateViewport } from '../../composition/compositionState'
+import { addCanvasNode, duplicateNodes, removeNode, removeSelectedItems, selectNode, setHoveredNode, toggleSnapToGrid, updateCanvasNodePosition, updateViewport } from '../../composition/compositionState'
 import { createCompositionDebugSummary } from '../../composition/compositionDebug'
 import { validateComposition } from '../../composition/compositionValidation'
 import { validateConnection } from '../../composition/connectionRules'
@@ -22,6 +22,7 @@ import { ConnectionPreview } from './ConnectionPreview'
 import { GroupEditor } from './GroupEditor'
 import { RelationshipDrawer } from './RelationshipDrawer'
 import { useInteractionSurface } from '../../interaction/useInteractionSurface'
+import { useCanvasHistory } from '../../composition/useCanvasHistory'
 
 type EnterpriseCompositionCanvasProps = {
   graph: EnterpriseGraph
@@ -87,6 +88,9 @@ export function EnterpriseCompositionCanvas({
   onCompositionStateChange,
 }: EnterpriseCompositionCanvasProps) {
   const { onEnter, onLeave } = useInteractionSurface('composition-canvas')
+  const history = useCanvasHistory()
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
   const [state, setState] = useState<CompositionState>(() => initialCompositionState ?? graphToCanvasState(graph, registry, traceHighlight))
   const [dragging, setDragging] = useState<{ nodeId: string; offset: CanvasPoint } | undefined>()
   const [panning, setPanning] = useState<{ start: CanvasPoint; viewport: CompositionState['viewport'] } | undefined>()
@@ -160,6 +164,10 @@ export function EnterpriseCompositionCanvas({
     const nextPosition = position ?? { x: 120 - state.viewport.x, y: 100 - state.viewport.y }
     const draft = createDraftFromTemplate(template)
 
+    history.push(state)
+    setCanUndo(true)
+    setCanRedo(false)
+
     if (draft) {
       const entityId = onCreateEntity(draft)
       setState((current) => ({
@@ -185,6 +193,9 @@ export function EnterpriseCompositionCanvas({
     const node = state.nodes.find((item) => item.id === nodeId)
     if (!node) return
     const point = clientToCanvas({ x: event.clientX, y: event.clientY })
+    history.push(state)
+    setCanUndo(true)
+    setCanRedo(false)
     setDragging({ nodeId, offset: { x: point.x - node.position.x, y: point.y - node.position.y } })
     setState((current) => selectNode(current, nodeId, event.shiftKey))
   }
@@ -217,6 +228,9 @@ export function EnterpriseCompositionCanvas({
     if (!relationshipDraft) return
     const source = state.nodes.find((node) => node.id === relationshipDraft.sourceNodeId)
     const target = state.nodes.find((node) => node.id === relationshipDraft.targetNodeId)
+    history.push(state)
+    setCanUndo(true)
+    setCanRedo(false)
 
     setState((current) =>
       createCanvasRelationship(current, relationshipDraft.sourceNodeId, relationshipDraft.targetNodeId, relationshipType),
@@ -240,6 +254,58 @@ export function EnterpriseCompositionCanvas({
       ...current,
       selection: { ...current.selection, pendingConnection: undefined },
     }))
+  }
+
+  function deleteSelected() {
+    if (state.selection.selectedNodeIds.length === 0 && !state.selection.selectedEdgeId) return
+    history.push(state)
+    setState((current) => removeSelectedItems(current))
+    setCanUndo(true)
+    setCanRedo(false)
+  }
+
+  function duplicateSelected() {
+    if (state.selection.selectedNodeIds.length === 0) return
+    history.push(state)
+    setState((current) => duplicateNodes(current, current.selection.selectedNodeIds))
+    setCanUndo(true)
+    setCanRedo(false)
+  }
+
+  function handleUndo() {
+    const previous = history.undo(state)
+    if (!previous) return
+    setState(previous)
+    setCanUndo(history.canUndo())
+    setCanRedo(history.canRedo())
+  }
+
+  function handleRedo() {
+    const next = history.redo(state)
+    if (!next) return
+    setState(next)
+    setCanUndo(history.canUndo())
+    setCanRedo(history.canRedo())
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    const hasModifier = event.ctrlKey || event.metaKey
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault()
+      deleteSelected()
+    } else if (hasModifier && event.shiftKey && event.key.toLowerCase() === 'z') {
+      event.preventDefault()
+      handleRedo()
+    } else if (hasModifier && event.key.toLowerCase() === 'z') {
+      event.preventDefault()
+      handleUndo()
+    } else if (hasModifier && event.key.toLowerCase() === 'y') {
+      event.preventDefault()
+      handleRedo()
+    } else if (hasModifier && event.key.toLowerCase() === 'd') {
+      event.preventDefault()
+      duplicateSelected()
+    }
   }
 
   function handleSelectNode(nodeId: string, append = false) {
@@ -280,16 +346,43 @@ export function EnterpriseCompositionCanvas({
     : false
 
   return (
-    <section className="composition-workspace" onMouseEnter={onEnter} onMouseLeave={onLeave}>
+    <section
+      className="composition-workspace"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
       <CompositionToolbar
         state={state}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onZoomIn={() => setState((current) => updateViewport(current, { zoom: Math.min(1.8, current.viewport.zoom + 0.1) }))}
         onZoomOut={() => setState((current) => updateViewport(current, { zoom: Math.max(0.55, current.viewport.zoom - 0.1) }))}
         onResetView={() => setState((current) => updateViewport(current, { x: 0, y: 0, zoom: 1 }))}
-        onAutoLayoutLayer={() => setState(autoLayoutByLayer)}
-        onAutoLayoutRelationship={() => setState(autoLayoutByRelationship)}
+        onAutoLayoutLayer={() => {
+          history.push(state)
+          setState(autoLayoutByLayer)
+          setCanUndo(true)
+          setCanRedo(false)
+        }}
+        onAutoLayoutRelationship={() => {
+          history.push(state)
+          setState(autoLayoutByRelationship)
+          setCanUndo(true)
+          setCanRedo(false)
+        }}
         onToggleSnap={() => setState(toggleSnapToGrid)}
-        onGroupSelection={() => setState((current) => createGroupFromSelection(current, 'bounded_context', 'Bounded Context'))}
+        onGroupSelection={() => {
+          history.push(state)
+          setState((current) => createGroupFromSelection(current, 'bounded_context', 'Bounded Context'))
+          setCanUndo(true)
+          setCanRedo(false)
+        }}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onDeleteSelected={deleteSelected}
+        onDuplicateSelected={duplicateSelected}
       />
 
       <div className="composition-layout">
@@ -450,6 +543,12 @@ export function EnterpriseCompositionCanvas({
                     if (sourceNodeId && sourceNodeId !== node.id) {
                       setRelationshipDraft({ sourceNodeId, targetNodeId: node.id })
                     }
+                  }}
+                  onDelete={() => {
+                    history.push(state)
+                    setState((current) => removeNode(current, node.id))
+                    setCanUndo(true)
+                    setCanRedo(false)
                   }}
                 />
               ))}

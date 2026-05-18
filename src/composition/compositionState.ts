@@ -39,3 +39,73 @@ export function updateViewport(state: CompositionState, patch: Partial<Compositi
 export function toggleSnapToGrid(state: CompositionState): CompositionState {
   return { ...state, layout: { ...state.layout, snapToGrid: !state.layout.snapToGrid } }
 }
+
+export function removeNode(state: CompositionState, nodeId: string): CompositionState {
+  return {
+    ...state,
+    nodes: state.nodes.filter((n) => n.id !== nodeId),
+    edges: state.edges.filter((e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId),
+    groups: state.groups.map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => id !== nodeId) })),
+    selection: {
+      ...state.selection,
+      selectedNodeIds: state.selection.selectedNodeIds.filter((id) => id !== nodeId),
+      pendingConnection: state.selection.pendingConnection?.sourceNodeId === nodeId
+        ? undefined
+        : state.selection.pendingConnection,
+    },
+  }
+}
+
+export function removeEdge(state: CompositionState, edgeId: string): CompositionState {
+  return {
+    ...state,
+    edges: state.edges.filter((e) => e.id !== edgeId),
+    selection: {
+      ...state.selection,
+      selectedEdgeId: state.selection.selectedEdgeId === edgeId ? undefined : state.selection.selectedEdgeId,
+    },
+  }
+}
+
+export function removeSelectedItems(state: CompositionState): CompositionState {
+  let next = state
+  for (const nodeId of [...state.selection.selectedNodeIds]) {
+    next = removeNode(next, nodeId)
+  }
+  if (state.selection.selectedEdgeId) {
+    next = removeEdge(next, state.selection.selectedEdgeId)
+  }
+  return next
+}
+
+const DUPLICATE_OFFSET = 24
+
+export function duplicateNodes(state: CompositionState, nodeIds: string[]): CompositionState {
+  if (nodeIds.length === 0) return state
+  const newNodes = nodeIds.flatMap((nodeId) => {
+    const original = state.nodes.find((n) => n.id === nodeId)
+    if (!original) return []
+    return [{
+      ...original,
+      id: `canvas:${original.kind}:${crypto.randomUUID()}`,
+      position: { x: original.position.x + DUPLICATE_OFFSET, y: original.position.y + DUPLICATE_OFFSET },
+      enterpriseNodeId: undefined,
+      domainEntityId: undefined,
+      status: 'selected' as const,
+    }]
+  })
+  if (newNodes.length === 0) return state
+
+  return {
+    ...state,
+    nodes: [
+      ...newNodes,
+      ...state.nodes.map((n) => ({
+        ...n,
+        status: n.status === 'selected' ? ('normal' as const) : n.status,
+      })),
+    ],
+    selection: { ...state.selection, selectedNodeIds: newNodes.map((n) => n.id) },
+  }
+}
+
