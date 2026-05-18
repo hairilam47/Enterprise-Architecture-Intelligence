@@ -72,6 +72,8 @@ import { TestingWorkspace } from './domain/TestingWorkspace'
 import { EnterpriseCompositionCanvas } from './composition/EnterpriseCompositionCanvas'
 import { RemoteCursorLayer } from './collaboration/RemoteCursorLayer'
 import { RemoteSelectionLayer } from './collaboration/RemoteSelectionLayer'
+import { WsCursorLayer } from './collaboration/WsCursorLayer'
+import { useWsCollaboration } from '../collaboration/useWsCollaboration'
 import { CommandHistoryPanel } from './debug/CommandHistoryPanel'
 import { CheckpointDialog } from './history/CheckpointDialog'
 import { RecoveryPanel } from './history/RecoveryPanel'
@@ -173,6 +175,7 @@ export function LayeredWorkspace() {
   const [replaySandboxStatus, setReplaySandboxStatus] = useState('idle')
   const [replayPerformanceWarning, setReplayPerformanceWarning] = useState<string | undefined>()
   const [collaborationSessions] = useState(() => createDefaultCollaborationSessions())
+  const { remoteCursors: wsRemoteCursors, isConnected: wsIsConnected, broadcastCursor } = useWsCollaboration()
   const [operationQueue] = useState(() => createOperationQueue())
   const [selectedDomainEntityId, setSelectedDomainEntityId] = useState<string | undefined>(
     navigationMemory.selectedEntityId ?? initialDomainRegistry.entities[0]?.id,
@@ -1299,7 +1302,12 @@ export function LayeredWorkspace() {
     () => [
       {
         id: 'remote-cursors',
-        node: <RemoteCursorLayer sessions={collaborationSessions.sessions} />,
+        node: (
+          <>
+            <RemoteCursorLayer sessions={collaborationSessions.sessions} />
+            <WsCursorLayer cursors={wsRemoteCursors} isConnected={wsIsConnected} />
+          </>
+        ),
       },
       {
         id: 'command-palette',
@@ -1506,6 +1514,7 @@ export function LayeredWorkspace() {
       stadium={
         <StadiumWorkspace
           mode={workspaceMode}
+          onCanvasPointerMove={(event) => broadcastCursor(event.clientX, event.clientY)}
           onCanvasContextMenu={(event) => {
             event.preventDefault()
             setContextMenu({

@@ -8,6 +8,7 @@ type StadiumWorkspaceProps = {
   mode: 'Build' | 'Analyze' | 'Replay'
   guidance?: ReactNode
   onCanvasContextMenu?: (event: MouseEvent<HTMLDivElement>) => void
+  onCanvasPointerMove?: (event: PointerEvent<HTMLDivElement>) => void
   children: ReactNode
 }
 
@@ -15,6 +16,7 @@ export function StadiumWorkspace({
   mode,
   guidance,
   onCanvasContextMenu,
+  onCanvasPointerMove,
   children,
 }: StadiumWorkspaceProps) {
   // ─── Refs (zero re-renders) ─────────────────────────────────────────────────
@@ -168,7 +170,7 @@ export function StadiumWorkspace({
         className="stadium-workspace__surface"
         aria-label={`${mode} stadium workspace canvas`}
         onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
+        onPointerMove={(e) => { handlePointerMove(e); onCanvasPointerMove?.(e) }}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onWheel={handleWheel}

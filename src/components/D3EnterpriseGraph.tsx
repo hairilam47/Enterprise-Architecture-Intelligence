@@ -68,6 +68,7 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
   const [hoverPeekPos, setHoverPeekPos] = useState<{ x: number; y: number } | undefined>()
   const [highlightedPath, setHighlightedPath] = useState<GraphTraversalResult | undefined>()
   const [positionResetSignal, setPositionResetSignal] = useState(0)
+  const [zoomTransform, setZoomTransform] = useState<{ x: number; y: number; k: number } | undefined>()
   const selectedNode = visualGraph.nodes.find((node) => node.id === selectedNodeId)
 
   const filteredGraph = useMemo(
@@ -214,6 +215,7 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
       .scaleExtent([0.45, 2.8])
       .on('zoom', (event) => {
         viewport.attr('transform', event.transform.toString())
+        setZoomTransform({ x: event.transform.x, y: event.transform.y, k: event.transform.k })
       })
 
     zoomRef.current = zoom
@@ -388,6 +390,13 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
       .transition()
       .duration(250)
       .call(zoom.transform, d3.zoomIdentity)
+  }
+
+  function handlePanTo(graphX: number, graphY: number) {
+    const svg = d3.select(svgRef.current)
+    const zoom = zoomRef.current
+    if (!zoom) return
+    svg.transition().duration(300).call(zoom.translateTo, graphX, graphY)
   }
 
   function handleResetPositions() {
@@ -598,6 +607,10 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
             focusMode={focusMode}
             activeFilters={activeFilters}
             performance={performanceSummary}
+            graphWidth={width}
+            graphHeight={height}
+            zoomTransform={zoomTransform}
+            onPanTo={handlePanTo}
           />
           <GraphInspector selectedNode={selectedInspectorNode} metrics={selectedMetrics} />
           <GraphLegend />

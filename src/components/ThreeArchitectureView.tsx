@@ -1,6 +1,7 @@
 import { Html, Line, OrbitControls, PerspectiveCamera, Text } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { findImpactPath, traverseDownstream, traverseUpstream } from '../graph/traverseGraph'
 import { buildThreeScene } from '../three/buildThreeScene'
@@ -92,27 +93,70 @@ function CameraActions({
   return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} />
 }
 
+function DragPlane({
+  active,
+  planeY,
+  onMove,
+  onUp,
+}: {
+  active: boolean
+  planeY: number
+  onMove: (x: number, z: number) => void
+  onUp: () => void
+}) {
+  if (!active) return null
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, planeY, 0]}
+      onPointerMove={(event) => { event.stopPropagation(); onMove(event.point.x, event.point.z) }}
+      onPointerUp={(event) => { event.stopPropagation(); onUp() }}
+    >
+      <planeGeometry args={[200, 200]} />
+      <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} />
+    </mesh>
+  )
+}
+
 function SpatialNodeMesh({
   node,
   showLabels,
   isDependency,
   nodeScale,
+  positionOverride,
   onSelect,
   onHover,
+  onDragStart,
+  onRef,
 }: {
   node: SpatialNode
   showLabels: boolean
   isDependency: boolean
   nodeScale: number
+  positionOverride?: { x: number; z: number }
   onSelect: (node: SpatialNode) => void
   onHover: (node?: SpatialNode) => void
+  onDragStart: (id: string, planeY: number) => void
+  onRef: (id: string, ref: THREE.Group | null) => void
 }) {
+  const groupRef = useRef<THREE.Group>(null)
   const scaledSize = node.size * nodeScale
   const ringScale = node.status === 'selected' || isDependency ? 1.45 : 1.18
+  const px = positionOverride?.x ?? node.position.x
+  const pz = positionOverride?.z ?? node.position.z
+
+  useEffect(() => {
+    onRef(node.id, groupRef.current)
+    return () => { onRef(node.id, null) }
+  }, [node.id, onRef])
 
   return (
-    <group position={[node.position.x, node.position.y, node.position.z]}>
+    <group ref={groupRef} position={[px, node.position.y, pz]}>
       <mesh
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          onDragStart(node.id, node.position.y)
+        }}
         onClick={(event) => {
           event.stopPropagation()
           onSelect(node)
@@ -158,6 +202,10 @@ export function ThreeArchitectureView({ visualGraph, traceHighlight }: ThreeArch
   const [selectedNodeId, setSelectedNodeId] = useState(visualGraph.nodes[0]?.id)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>()
   const [focusSignal, setFocusSignal] = useState(0)
+  const [dragging, setDragging] = useState<{ nodeId: string; planeY: number } | null>(null)
+  const spatialPositions = useRef<Map<string, { x: number; z: number }>>(new Map())
+  const nodeGroupRefs = useRef<Map<string, THREE.Group | null>>(new Map())
+  const [spatialPosVersion, setSpatialPosVersion] = useState(0)
   const selectedVisualNode = visualGraph.nodes.find((node) => node.id === selectedNodeId)
   const hoverPath = useMemo(() => {
     const enterpriseNodeId = hoveredNodeId?.replace('visual:', '')
@@ -285,6 +333,25 @@ export function ThreeArchitectureView({ visualGraph, traceHighlight }: ThreeArch
                 />
               ))}
 
+            <DragPlane
+              active={!!dragging}
+              planeY={dragging?.planeY ?? 0}
+              onMove={(x, z) => {
+                if (!dragging) return
+                const group = nodeGroupRefs.current.get(dragging.nodeId)
+                if (group) { group.position.x = x; group.position.z = z }
+              }}
+              onUp={() => {
+                if (!dragging) return
+                const group = nodeGroupRefs.current.get(dragging.nodeId)
+                if (group) {
+                  spatialPositions.current.set(dragging.nodeId, { x: group.position.x, z: group.position.z })
+                }
+                setDragging(null)
+                setSpatialPosVersion((v) => v + 1)
+              }}
+            />
+
             {scene.nodes.map((node) => (
               <SpatialNodeMesh
                 key={node.id}
@@ -292,8 +359,11 @@ export function ThreeArchitectureView({ visualGraph, traceHighlight }: ThreeArch
                 showLabels={effectiveShowLabels}
                 isDependency={hoverPath?.has(node.id) ?? false}
                 nodeScale={nodeScale}
-                onSelect={(nextNode) => setSelectedNodeId(nextNode.id.replace('spatial:', ''))}
+                positionOverride={spatialPosVersion >= 0 ? spatialPositions.current.get(node.id) : undefined}
+                onSelect={(nextNode) => { if (!dragging) setSelectedNodeId(nextNode.id.replace('spatial:', '')) }}
                 onHover={(nextNode) => setHoveredNodeId(nextNode?.id.replace('spatial:', ''))}
+                onDragStart={(id, planeY) => setDragging({ nodeId: id, planeY })}
+                onRef={(id, ref) => nodeGroupRefs.current.set(id, ref)}
               />
             ))}
           </Canvas>

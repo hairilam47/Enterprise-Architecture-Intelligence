@@ -4867,3 +4867,119 @@ meter {
     #0f172a;
   background-size: 48px 48px, 48px 48px, 48px 48px;
 }
+
+/* =============================================================================
+ * Sprint 22 — Print layout
+ * ============================================================================= */
+
+/* Minimap nav SVG interactive affordance */
+.minimap-nav {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  transition: box-shadow 120ms ease;
+}
+
+.minimap-nav:hover {
+  box-shadow: 0 0 0 2px #2563eb44;
+}
+
+/* WS cursor layer */
+.ws-cursor-layer {
+  pointer-events: none;
+}
+
+@media print {
+  /* Hide non-essential chrome */
+  .studio-shell__left,
+  .studio-shell__right,
+  .studio-shell__bottom,
+  .studio-shell__top,
+  .theme-toggle,
+  .toast-container,
+  .graph-toolbar,
+  .composition-toolbar,
+  .composition-palette,
+  .graph-filter-panel,
+  .graph-minimap,
+  .graph-legend,
+  .three-view-panel aside,
+  .remote-cursor-layer,
+  .ws-cursor-layer,
+  .command-palette-backdrop,
+  .shortcut-overlay-backdrop,
+  .stadium-workspace__guidance,
+  .dependency-heat-overlay,
+  .overlay-actions,
+  .d3-canvas-wrap .overlay-actions {
+    display: none !important;
+  }
+
+  /* Reset the shell to a single-column print layout */
+  .studio-shell,
+  .studio-shell[data-layout-authority='workspace-shell'] {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    overflow: visible !important;
+    contain: none !important;
+  }
+
+  .studio-shell__stage {
+    overflow: visible !important;
+    contain: none !important;
+  }
+
+  /* Make the canvas area full-width on print */
+  .stadium-workspace,
+  .stadium-workspace__surface,
+  .stadium-workspace__content {
+    position: static !important;
+    overflow: visible !important;
+    min-width: 100% !important;
+    contain: none !important;
+    transform: none !important;
+  }
+
+  /* Ensure D3 and composition canvases render fully */
+  .d3-enterprise-canvas,
+  .composition-canvas {
+    width: 100% !important;
+    min-height: 80vh !important;
+    background: #ffffff !important;
+    break-inside: avoid;
+  }
+
+  /* Print header */
+  .studio-shell::before {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 2px solid #0f172a;
+    margin-bottom: 20px;
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 900;
+    content: 'Enterprise Architecture — ' attr(data-workspace-name);
+  }
+
+  /* Readable graph layout */
+  .d3-graph-layout,
+  .three-view-layout,
+  .composition-layout {
+    display: block !important;
+  }
+
+  /* Preserve page break logic */
+  .panel {
+    break-inside: avoid;
+    margin-bottom: 24px;
+  }
+
+  /* Ensure no background graphics that waste ink */
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+}
