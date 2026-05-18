@@ -109,6 +109,8 @@ export function EnterpriseCompositionCanvas({
   const [editingNodeId, setEditingNodeId] = useState<string | undefined>()
   const [contextMenu, setContextMenu] = useState<ContextMenuState | undefined>()
   const canvasRef = useRef<SVGSVGElement | null>(null)
+  // C4: timer ref for click/double-click disambiguation
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>()
 
   useEffect(() => {
     setState((current) => graphToCanvasState(graph, registry, traceHighlight, current))
@@ -133,9 +135,10 @@ export function EnterpriseCompositionCanvas({
   const pendingTargetNode = state.selection.hoveredNodeId
     ? state.nodes.find((node) => node.id === state.selection.hoveredNodeId)
     : undefined
+  // H5: depend only on the fields that affect connection rules, not the entire state object
   const connectionRuleResult = useMemo(
     () => validateConnection(state, pendingConnectionSource, pendingTargetNode?.id, relationshipType),
-    [state, pendingConnectionSource, pendingTargetNode?.id, relationshipType],
+    [state.nodes, pendingConnectionSource, pendingTargetNode?.id, relationshipType],
   )
   const validation = useMemo(
     () => validateComposition(state, graph, registry, traceHighlight),
@@ -152,15 +155,24 @@ export function EnterpriseCompositionCanvas({
     [state, graph, traceHighlight, validation, dragging?.nodeId, pendingConnectionSource, pointerCanvasPoint],
   )
 
-  const hoveredDependencies = useMemo(() => {
-    if (!state.selection.hoveredNodeId) return new Set<string>()
-    const connected = new Set<string>([state.selection.hoveredNodeId])
+  // H6: pre-compute adjacency index for O(1) hover dependency lookup
+  const adjacencyIndex = useMemo(() => {
+    const index = new Map<string, Set<string>>()
     state.edges.forEach((edge) => {
-      if (edge.sourceNodeId === state.selection.hoveredNodeId) connected.add(edge.targetNodeId)
-      if (edge.targetNodeId === state.selection.hoveredNodeId) connected.add(edge.sourceNodeId)
+      if (!index.has(edge.sourceNodeId)) index.set(edge.sourceNodeId, new Set())
+      if (!index.has(edge.targetNodeId)) index.set(edge.targetNodeId, new Set())
+      index.get(edge.sourceNodeId)!.add(edge.targetNodeId)
+      index.get(edge.targetNodeId)!.add(edge.sourceNodeId)
     })
-    return connected
-  }, [state.edges, state.selection.hoveredNodeId])
+    return index
+  }, [state.edges])
+
+  const hoveredDependencies = useMemo(() => {
+    const nodeId = state.selection.hoveredNodeId
+    if (!nodeId) return new Set<string>()
+    const neighbors = adjacencyIndex.get(nodeId) ?? new Set<string>()
+    return new Set([nodeId, ...neighbors])
+  }, [adjacencyIndex, state.selection.hoveredNodeId])
 
   function clientToCanvas(point: CanvasPoint) {
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -204,6 +216,8 @@ export function EnterpriseCompositionCanvas({
     const node = state.nodes.find((item) => item.id === nodeId)
     if (!node) return
     const point = clientToCanvas({ x: event.clientX, y: event.clientY })
+    // C5/H8: capture pointer so drag continues past SVG bounds
+    event.currentTarget.setPointerCapture(event.pointerId)
     history.push(state)
     setCanUndo(true)
     setCanRedo(false)
@@ -228,7 +242,8 @@ export function EnterpriseCompositionCanvas({
     if (canvasGesture?.kind === 'undecided') {
       const dx = event.clientX - canvasGesture.clientStart.x
       const dy = event.clientY - canvasGesture.clientStart.y
-      if (Math.sqrt(dx * dx + dy * dy) > 8) {
+      // M1: 12px threshold prevents trackpad jitter from triggering marquee on a click
+    if (Math.sqrt(dx * dx + dy * dy) > 12) {
         if (event.altKey) {
           setCanvasGesture({ kind: 'panning', clientStart: canvasGesture.clientStart, viewport: state.viewport })
         } else {
@@ -330,6 +345,8 @@ export function EnterpriseCompositionCanvas({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    // M2: don't intercept shortcuts while user is typing in an input/textarea
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
     const hasModifier = event.ctrlKey || event.metaKey
     if (event.key === 'Delete' || event.key === 'Backspace') {
       if (editingNodeId) return
@@ -639,9 +656,18 @@ export function EnterpriseCompositionCanvas({
                   onPointerLeave={() => setState((current) => setHoveredNode(current, undefined))}
                   onClick={(event) => {
                     event.stopPropagation()
-                    handleSelectNode(node.id, event.shiftKey)
+                    // C4: schedule selection in a timer so double-click can cancel it before it fires
+                    const shiftKey = event.shiftKey
+                    clearTimeout(clickTimerRef.current)
+                    clickTimerRef.current = setTimeout(() => {
+                      handleSelectNode(node.id, shiftKey)
+                    }, 220)
                   }}
-                  onDoubleClick={() => setEditingNodeId(node.id)}
+                  onDoubleClick={() => {
+                    // C4: cancel the pending single-click selection before opening rename
+                    clearTimeout(clickTimerRef.current)
+                    setEditingNodeId(node.id)
+                  }}
                   onLabelCommit={(label) => handleLabelCommit(node.id, label)}
                   onContextMenuRequest={(clientX, clientY) => handleNodeContextMenu(node.id, clientX, clientY)}
                   onStartConnection={() =>

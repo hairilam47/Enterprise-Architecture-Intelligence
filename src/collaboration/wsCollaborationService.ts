@@ -18,10 +18,12 @@ export type WsPresenceEvent = {
 export type WsEvent = WsCursorEvent | WsPresenceEvent
 
 type MessageHandler = (event: WsEvent) => void
+type ConnectionHandler = (connected: boolean) => void
 
 class WsCollaborationService {
   private ws: WebSocket | null = null
   private handlers = new Set<MessageHandler>()
+  private connectionHandlers = new Set<ConnectionHandler>()
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private currentUrl = ''
   readonly sessionId = `ws:${crypto.randomUUID().slice(0, 8)}`
@@ -38,6 +40,7 @@ class WsCollaborationService {
 
       this.ws.onopen = () => {
         clearTimeout(this.reconnectTimer)
+        for (const h of this.connectionHandlers) h(true)
       }
 
       this.ws.onmessage = (event) => {
@@ -51,6 +54,7 @@ class WsCollaborationService {
 
       this.ws.onclose = () => {
         this.ws = null
+        for (const h of this.connectionHandlers) h(false)
         // exponential back-off, cap at 8s
         const delay = Math.min(8000, 1500 * Math.pow(1.5, Math.floor(Math.random() * 3)))
         this.reconnectTimer = setTimeout(() => this._tryConnect(), delay)
@@ -83,6 +87,12 @@ class WsCollaborationService {
   subscribe(handler: MessageHandler): () => void {
     this.handlers.add(handler)
     return () => { this.handlers.delete(handler) }
+  }
+
+  // H1: event-based connection state — no polling needed
+  onConnectionChange(handler: ConnectionHandler): () => void {
+    this.connectionHandlers.add(handler)
+    return () => { this.connectionHandlers.delete(handler) }
   }
 
   get isConnected(): boolean {

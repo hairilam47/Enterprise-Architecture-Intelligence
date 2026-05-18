@@ -15,11 +15,17 @@ type ContextualActionMenuProps = {
 export function ContextualActionMenu({ menu, onClose }: ContextualActionMenuProps) {
   if (!menu) return null
 
+  // M7: clamp to viewport so menu never overflows screen edges
+  const MENU_W = 260
+  const MENU_H = 200
+  const clampedX = Math.min(menu.x, window.innerWidth - MENU_W - 8)
+  const clampedY = Math.min(menu.y, window.innerHeight - MENU_H - 8)
+
   return (
     <div className="contextual-action-scrim" role="presentation" onMouseDown={onClose}>
       <section
         className="contextual-action-menu"
-        style={{ left: menu.x, top: menu.y }}
+        style={{ left: clampedX, top: clampedY }}
         role="menu"
         aria-label={menu.label}
         onMouseDown={(event) => event.stopPropagation()}

@@ -47,10 +47,10 @@ export function useWsCollaboration() {
       }
     })
 
-    // Poll connection state
-    const connTimer = setInterval(() => {
-      setIsConnected(wsCollaborationService.isConnected)
-    }, 1000)
+    // H1: subscribe to connection events instead of polling setInterval
+    const unsubConn = wsCollaborationService.onConnectionChange((connected) => {
+      setIsConnected(connected)
+    })
 
     // Prune stale cursors
     pruneTimer.current = setInterval(() => {
@@ -67,7 +67,7 @@ export function useWsCollaboration() {
 
     return () => {
       unsub()
-      clearInterval(connTimer)
+      unsubConn()
       clearInterval(pruneTimer.current)
       wsCollaborationService.disconnect()
     }

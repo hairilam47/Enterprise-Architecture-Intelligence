@@ -174,7 +174,8 @@ export function StadiumWorkspace({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
-        onContextMenu={onCanvasContextMenu}
+        // H7: bail out if a child already handled the context menu (prevents double-menu)
+        onContextMenu={(event) => { if (!event.defaultPrevented) onCanvasContextMenu?.(event) }}
       >
         {/* Semantic zone layer sits behind content, pointer-events: none */}
         <WorkspaceZoneLayer />

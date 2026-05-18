@@ -53,6 +53,16 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
   const simulationRef = useRef<d3.Simulation<D3Node, D3Edge> | null>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
   const nodePositions = useRef<Map<string, { x: number; y: number }>>(new Map())
+
+  // D3 selection refs — shared between simulation and class-update effects (H2/H3)
+  const nodeGroupsRef = useRef<d3.Selection<SVGGElement, D3Node, SVGGElement, unknown> | null>(null)
+  const edgeSelectionRef = useRef<d3.Selection<SVGLineElement, D3Edge, SVGGElement, unknown> | null>(null)
+  const currentEdgesRef = useRef<D3Edge[]>([])
+
+  // RAF refs for C2 hover peek throttle
+  const hoverPeekRafRef = useRef<number | undefined>()
+  const hoverPeekPosRefInternal = useRef<{ x: number; y: number } | undefined>()
+
   const [focusMode, setFocusMode] = useState<GraphFocusMode>('full_graph')
   const [layerFilter, setLayerFilter] = useState('')
   const [showLabels, setShowLabels] = useState(true)
@@ -68,6 +78,7 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
   const [hoverPeekPos, setHoverPeekPos] = useState<{ x: number; y: number } | undefined>()
   const [highlightedPath, setHighlightedPath] = useState<GraphTraversalResult | undefined>()
   const [positionResetSignal, setPositionResetSignal] = useState(0)
+  // C1: Only updated on zoom 'end', not on every tick
   const [zoomTransform, setZoomTransform] = useState<{ x: number; y: number; k: number } | undefined>()
   const selectedNode = visualGraph.nodes.find((node) => node.id === selectedNodeId)
 
@@ -183,12 +194,13 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
       }
     : undefined
   const activePath = tracePath ?? highlightedPath ?? hoverPath
-  const activeNodeIds = useMemo(
-    () => new Set(activePath?.nodeIds.map((nodeId) => `visual:${nodeId}`) ?? []),
-    [activePath],
-  )
-  const activeEdgeIds = useMemo(
-    () => new Set(activePath?.edgeIds.map((edgeId) => `visual:${edgeId}`) ?? []),
+
+  // L4: Single memo for both active sets — one invalidation when activePath changes
+  const { activeNodeIds, activeEdgeIds } = useMemo(
+    () => ({
+      activeNodeIds: new Set(activePath?.nodeIds.map((nodeId) => `visual:${nodeId}`) ?? []),
+      activeEdgeIds: new Set(activePath?.edgeIds.map((edgeId) => `visual:${edgeId}`) ?? []),
+    }),
     [activePath],
   )
   const impactedNodeIds = useMemo(
@@ -200,6 +212,7 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     [traceHighlight?.missingLinkNodeIds],
   )
 
+  // ─── Zoom setup (runs once) ─────────────────────────────────────────────────
   useEffect(() => {
     const svgElement = svgRef.current
     const viewportElement = viewportRef.current
@@ -215,6 +228,13 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
       .scaleExtent([0.45, 2.8])
       .on('zoom', (event) => {
         viewport.attr('transform', event.transform.toString())
+        // H4: prevent wheel from bubbling to stadium camera zoom (double-zoom fix)
+        if (event.sourceEvent instanceof WheelEvent) {
+          event.sourceEvent.stopPropagation()
+        }
+      })
+      // C1: only update React state at gesture end, not on every tick
+      .on('end', (event) => {
         setZoomTransform({ x: event.transform.x, y: event.transform.y, k: event.transform.k })
       })
 
@@ -224,13 +244,19 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     return () => {
       svg.on('.zoom', null)
       zoomRef.current = null
+      // Cancel any pending hover peek RAF
+      if (hoverPeekRafRef.current !== undefined) {
+        cancelAnimationFrame(hoverPeekRafRef.current)
+      }
     }
   }, [])
 
+  // ─── Simulation effect — only runs when graph data changes (H2, H3) ─────────
   useEffect(() => {
     simulationRef.current?.stop()
 
     const { nodes, edges } = cloneForD3(focusedGraph)
+    currentEdgesRef.current = edges
     const nodeById = new Map(nodes.map((node) => [node.id, node]))
 
     // Restore persisted drag positions
@@ -254,17 +280,20 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
 
     simulationRef.current = simulation
 
-    edgeLayer
+    // Build edge selection with default (non-highlighted) colors
+    const edgeSel = edgeLayer
       .selectAll<SVGLineElement, D3Edge>('line')
       .data(edges, (edge) => edge.id)
       .join('line')
       .attr('class', 'd3-edge')
-      .attr('stroke', (edge) => (activeEdgeIds.has(edge.id) ? '#0f172a' : edge.color))
-      .attr('stroke-width', (edge) => (activeEdgeIds.has(edge.id) ? edge.width + 2 : edge.width))
+      .attr('stroke', (edge) => edge.color)
+      .attr('stroke-width', (edge) => edge.width)
+    edgeSelectionRef.current = edgeSel
 
+    // Edge labels — data join controls visibility; class effect toggles shouldShowLabels
     labelLayer
       .selectAll<SVGTextElement, D3Edge>('text')
-      .data(shouldShowLabels ? edges : [], (edge) => edge.id)
+      .data(edges, (edge) => edge.id)
       .join('text')
       .attr('class', 'd3-edge-label')
       .text((edge) => edge.relationship.replace('_', ' '))
@@ -313,13 +342,8 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
           }),
       )
 
-    nodeGroups.select('circle.d3-node-ring').attr('r', (node) => {
-      const base = node.radius + 7
-      if (selectedNodeId === node.id || activeNodeIds.has(node.id)) {
-        return base + 4
-      }
-      return base
-    })
+    // Default ring/core visuals (active classes applied by class-update effect)
+    nodeGroups.select('circle.d3-node-ring').attr('r', (node) => node.radius + 7)
     nodeGroups
       .select('circle.d3-node-core')
       .attr('r', (node) => node.radius)
@@ -327,15 +351,9 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     nodeGroups.select('text.d3-node-type').text((node) => node.type.slice(0, 2).toUpperCase())
     nodeGroups
       .select('text.d3-node-label')
-      .text((node) => (shouldShowLabels ? (node.label.length > 16 ? `${node.label.slice(0, 14)}...` : node.label) : ''))
+      .text((node) => (node.label.length > 16 ? `${node.label.slice(0, 14)}...` : node.label))
 
-    nodeGroups
-      .classed('is-selected', (node) => selectedNodeId === node.id)
-      .classed('is-active-path', (node) => activeNodeIds.has(node.id))
-      .classed('is-warning', (node) => warningNodeIds.has(node.id))
-      .classed('is-bottleneck', (node) => bottleneckNodeIds.has(node.id))
-      .classed('is-impacted', (node) => impactedNodeIds.has(node.id))
-      .classed('is-missing-link', (node) => missingLinkIds.has(node.id))
+    nodeGroupsRef.current = nodeGroups
 
     simulation.on('tick', () => {
       edgeLayer
@@ -364,14 +382,57 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
     return () => {
       simulation.stop()
     }
+  }, [focusedGraph, positionResetSignal])
+
+  // ─── Class-update effect — lightweight, no simulation restart (H2) ──────────
+  // Runs whenever any highlight/selection/label-visibility state changes.
+  useEffect(() => {
+    const nodeGroups = nodeGroupsRef.current
+    const edgeSel = edgeSelectionRef.current
+    if (!nodeGroups || !edgeSel) return
+
+    // Update edge visual state
+    edgeSel
+      .attr('stroke', (edge) => (activeEdgeIds.has(edge.id) ? '#0f172a' : edge.color))
+      .attr('stroke-width', (edge) => (activeEdgeIds.has(edge.id) ? edge.width + 2 : edge.width))
+
+    // Update node ring sizes based on selection/active state
+    nodeGroups.select('circle.d3-node-ring').attr('r', (node) => {
+      const base = node.radius + 7
+      return selectedNodeId === node.id || activeNodeIds.has(node.id) ? base + 4 : base
+    })
+
+    // Toggle label text visibility
+    nodeGroups
+      .select('text.d3-node-label')
+      .text((node) =>
+        shouldShowLabels ? (node.label.length > 16 ? `${node.label.slice(0, 14)}...` : node.label) : '',
+      )
+
+    // Toggle edge labels visibility via data join
+    const viewport = d3.select(viewportRef.current)
+    viewport
+      .select<SVGGElement>('.d3-label-layer')
+      .selectAll<SVGTextElement, D3Edge>('text')
+      .data(shouldShowLabels ? currentEdgesRef.current : [], (edge) => edge.id)
+      .join('text')
+      .attr('class', 'd3-edge-label')
+      .text((edge) => edge.relationship.replace('_', ' '))
+
+    // Apply CSS classes
+    nodeGroups
+      .classed('is-selected', (node) => selectedNodeId === node.id)
+      .classed('is-active-path', (node) => activeNodeIds.has(node.id))
+      .classed('is-warning', (node) => warningNodeIds.has(node.id))
+      .classed('is-bottleneck', (node) => bottleneckNodeIds.has(node.id))
+      .classed('is-impacted', (node) => impactedNodeIds.has(node.id))
+      .classed('is-missing-link', (node) => missingLinkIds.has(node.id))
   }, [
     activeEdgeIds,
     activeNodeIds,
     bottleneckNodeIds,
-    focusedGraph,
     impactedNodeIds,
     missingLinkIds,
-    positionResetSignal,
     selectedNodeId,
     shouldShowLabels,
     warningNodeIds,
@@ -517,15 +578,28 @@ export function D3EnterpriseGraph({ visualGraph, traceHighlight }: D3EnterpriseG
             onQueryChange={setSearchQuery}
             onSelectResult={handleSearchSelect}
           />
+          {/* L5: className instead of inline style object */}
           <div
-            style={{ position: 'relative' }}
+            className="d3-canvas-relative"
             onMouseMove={(e) => {
-              if (hoveredNodeId) {
-                const rect = e.currentTarget.getBoundingClientRect()
-                setHoverPeekPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+              if (!hoveredNodeId) return
+              // C2: RAF throttle — avoid setState on every mousemove pixel
+              const rect = e.currentTarget.getBoundingClientRect()
+              hoverPeekPosRefInternal.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+              if (hoverPeekRafRef.current === undefined) {
+                hoverPeekRafRef.current = requestAnimationFrame(() => {
+                  setHoverPeekPos(hoverPeekPosRefInternal.current)
+                  hoverPeekRafRef.current = undefined
+                })
               }
             }}
-            onMouseLeave={() => setHoverPeekPos(undefined)}
+            onMouseLeave={() => {
+              if (hoverPeekRafRef.current !== undefined) {
+                cancelAnimationFrame(hoverPeekRafRef.current)
+                hoverPeekRafRef.current = undefined
+              }
+              setHoverPeekPos(undefined)
+            }}
           >
             <svg ref={svgRef} className="d3-enterprise-canvas" viewBox={`0 0 ${width} ${height}`} role="img">
               <defs>

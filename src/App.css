@@ -428,6 +428,13 @@
   font-weight: 800;
 }
 
+/* L1: dark mode variant for remote cursor */
+[data-theme="dark"] .remote-cursor {
+  background: #1e293b;
+  color: #f1f5f9;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
 .remote-selection-layer {
   margin-top: 16px;
 }
@@ -2343,7 +2350,19 @@ meter {
   position: absolute;
   top: -10px;
   right: 8px;
-  z-index: 2;
+  z-index: 10;
+}
+
+/* L2: dark mode for guidance minimize / restore button */
+[data-theme="dark"] .stadium-workspace__guidance.is-minimized > button,
+[data-theme="dark"] .stadium-workspace__guidance-minimize {
+  background: rgba(30, 41, 59, 0.9);
+  color: #94a3b8;
+}
+
+/* L5: replaces inline style={{ position: 'relative' }} on D3 canvas wrapper */
+.d3-canvas-relative {
+  position: relative;
 }
 
 .empty-workspace-state {
@@ -3601,10 +3620,10 @@ meter {
   color: rgba(100, 116, 139, 0.58);
 }
 
+/* H8: removed .contextual-action-scrim from this group — it has its own rule below (z-index: 90) */
 .command-palette-backdrop,
 .workspace-launcher-backdrop,
-.shortcut-overlay-backdrop,
-.contextual-action-scrim {
+.shortcut-overlay-backdrop {
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -3831,8 +3850,11 @@ meter {
   font-weight: 800;
 }
 
+/* H8: single authoritative rule for the context menu scrim (z-index: 90, no backdrop) */
 .contextual-action-scrim {
-  z-index: 90;
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-context-menu, 90);
   display: block;
   padding: 0;
   background: transparent;
@@ -4391,7 +4413,7 @@ meter {
   position: absolute;
   top: -10px;
   right: 8px;
-  z-index: 2;
+  z-index: 10;
 }
 
 .empty-workspace-state,

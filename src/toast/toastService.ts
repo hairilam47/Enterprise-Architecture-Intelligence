@@ -8,6 +8,8 @@ export type Toast = {
 
 type ToastListener = (toasts: Toast[]) => void
 
+const MAX_TOASTS = 5
+
 let _toasts: Toast[] = []
 const _listeners = new Set<ToastListener>()
 
@@ -17,7 +19,9 @@ function _notify() {
 
 export function showToast(message: string, kind: ToastKind = 'info', durationMs = 2800): void {
   const id = crypto.randomUUID()
-  _toasts = [..._toasts, { id, message, kind }]
+  // L3: cap queue so rapid showToast calls don't stack indefinitely
+  const base = _toasts.length >= MAX_TOASTS ? _toasts.slice(1) : _toasts
+  _toasts = [...base, { id, message, kind }]
   _notify()
   setTimeout(() => {
     _toasts = _toasts.filter((t) => t.id !== id)

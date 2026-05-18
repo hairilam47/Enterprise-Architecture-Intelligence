@@ -21,6 +21,16 @@ type ThreeArchitectureViewProps = {
   traceHighlight?: TraceHighlightState
 }
 
+// C3: module-level constants — stable references, no new objects on each render
+const CANVAS_DPR: [number, number] = [1, 1.5]
+const CANVAS_GL = { antialias: true }
+const CAMERA_POSITION: [number, number, number] = [3.8, 7.2, 7.8]
+const AMBIENT_INTENSITY = 0.72
+const DIR_LIGHT_POSITION: [number, number, number] = [4, 8, 6]
+const DIR_LIGHT_INTENSITY = 1.1
+const GRID_ARGS: [number, number, string, string] = [12, 12, '#cbd5e1', '#e2e8f0']
+const GRID_POSITION: [number, number, number] = [0, -1.6, 0]
+
 function statusColor(status: SpatialNode['status']) {
   if (status === 'selected') return '#0f172a'
   if (status === 'warning') return '#f59e0b'
@@ -297,17 +307,17 @@ export function ThreeArchitectureView({ visualGraph, traceHighlight }: ThreeArch
 
       <div className="three-view-layout">
         <div className="three-canvas-shell">
-          <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: true }}>
-            <PerspectiveCamera makeDefault position={[3.8, 7.2, 7.8]} fov={46} />
+          <Canvas shadows dpr={CANVAS_DPR} gl={CANVAS_GL}>
+            <PerspectiveCamera makeDefault position={CAMERA_POSITION} fov={46} />
             <CameraActions
               selectedNode={selectedSpatialNode}
               focusSignal={focusSignal}
               cameraPreset={cameraPreset}
               layerYPosition={focusedLayerY}
             />
-            <ambientLight intensity={0.72} />
-            <directionalLight position={[4, 8, 6]} intensity={1.1} />
-            <gridHelper args={[12, 12, '#cbd5e1', '#e2e8f0']} position={[0, -1.6, 0]} />
+            <ambientLight intensity={AMBIENT_INTENSITY} />
+            <directionalLight position={DIR_LIGHT_POSITION} intensity={DIR_LIGHT_INTENSITY} />
+            <gridHelper args={GRID_ARGS} position={GRID_POSITION} />
 
             {scene.layers.map((layer) => (
               <group key={layer.id} position={[0, layer.yPosition, 0]}>
@@ -359,7 +369,8 @@ export function ThreeArchitectureView({ visualGraph, traceHighlight }: ThreeArch
                 showLabels={effectiveShowLabels}
                 isDependency={hoverPath?.has(node.id) ?? false}
                 nodeScale={nodeScale}
-                positionOverride={spatialPosVersion >= 0 ? spatialPositions.current.get(node.id) : undefined}
+                // M5: only pass positionOverride for nodes that actually have a saved position
+                positionOverride={spatialPositions.current.has(node.id) ? spatialPositions.current.get(node.id) : undefined}
                 onSelect={(nextNode) => { if (!dragging) setSelectedNodeId(nextNode.id.replace('spatial:', '')) }}
                 onHover={(nextNode) => setHoveredNodeId(nextNode?.id.replace('spatial:', ''))}
                 onDragStart={(id, planeY) => setDragging({ nodeId: id, planeY })}
