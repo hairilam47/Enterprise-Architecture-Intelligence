@@ -13,7 +13,7 @@
  *       └── ImpactAnalysisPanel (right, 240px — togglable)
  */
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useEAStore } from '../../store/eaStore'
 import { ShapePalette } from './ShapePalette'
 import { EACanvas } from './EACanvas'
@@ -23,6 +23,9 @@ import { ImpactAnalysisPanel } from './ImpactAnalysisPanel'
 import { StoreGraphView } from './StoreGraphView'
 import { StoreThreeView } from './StoreThreeView'
 import { downloadJSON, downloadArchiMateXML } from '../../io/exportProject'
+import { computeELKLayout } from '../../layout/elkLayout'
+import { useCollaboration } from '../../collaboration/yBinding'
+import { PresenceIndicator } from '../../collaboration/PresenceIndicator'
 
 type ViewTab = 'canvas' | 'graph' | '3d'
 
@@ -66,14 +69,35 @@ export function EAWorkspace() {
   }
 
   const project = useEAStore((s) => s.project)
+  const updateElementPosition = useEAStore((s) => s.updateElementPosition)
+  const activeViewId = useEAStore((s) => s.project.activeViewId)
+  const [layouting, setLayouting] = useState(false)
+  const [collabProjectId, setCollabProjectId] = useState<string | null>(null)
+  const collab = useCollaboration(collabProjectId)
+
+  const projectId = useEAStore((s) => s.project.id)
+
+  const handleAutoLayout = useCallback(async () => {
+    setLayouting(true)
+    try {
+      const positions = await computeELKLayout(project, activeViewId ?? undefined)
+      positions.forEach(({ id, x, y }) => {
+        updateElementPosition(id, activeViewId ?? '', { x, y })
+      })
+    } finally {
+      setLayouting(false)
+    }
+  }, [project, activeViewId, updateElementPosition])
 
   const toolbarActions: ToolbarAction[] = [
-    { key: 'palette', label: 'Palette',   icon: '◫', action: () => setShowPalette((v) => !v), active: showPalette },
-    { key: 'undo',    label: 'Undo',      icon: '↩', action: undo,   active: undoStack.length > 0 },
-    { key: 'redo',    label: 'Redo',      icon: '↪', action: redo,   active: redoStack.length > 0 },
-    { key: 'impact',  label: 'Impact',    icon: '⚡', action: () => setShowImpact((v) => !v), active: showImpact },
-    { key: 'json',    label: 'Export JSON',  icon: '↓J', action: () => downloadJSON(project) },
-    { key: 'xml',     label: 'Export XML',   icon: '↓X', action: () => downloadArchiMateXML(project) },
+    { key: 'palette', label: 'Palette',     icon: '◫', action: () => setShowPalette((v) => !v), active: showPalette },
+    { key: 'undo',    label: 'Undo',        icon: '↩', action: undo,   active: undoStack.length > 0 },
+    { key: 'redo',    label: 'Redo',        icon: '↪', action: redo,   active: redoStack.length > 0 },
+    { key: 'layout',  label: layouting ? 'Laying out…' : 'Auto-layout', icon: '⊞', action: handleAutoLayout },
+    { key: 'impact',  label: 'Impact',      icon: '⚡', action: () => setShowImpact((v) => !v), active: showImpact },
+    { key: 'share',   label: collab.active ? 'Stop sharing' : 'Share', icon: '⇄', action: () => setCollabProjectId(collab.active ? null : projectId), active: collab.active },
+    { key: 'json',    label: 'Export JSON', icon: '↓J', action: () => downloadJSON(project) },
+    { key: 'xml',     label: 'Export XML',  icon: '↓X', action: () => downloadArchiMateXML(project) },
   ]
 
   return (
@@ -86,6 +110,10 @@ export function EAWorkspace() {
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', background: 'var(--color-surface, #1a1a2e)', borderBottom: '1px solid #2a2a4a', flexShrink: 0, zIndex: 10 }}>
         <ViewSwitcher activeView={activeViewTab} onChange={setActiveViewTab} />
+
+        <div style={{ marginLeft: 12 }}>
+          <PresenceIndicator collab={collab} />
+        </div>
 
         {/* Toolbar */}
         <div style={{ display: 'flex', gap: 2, padding: '0 8px', marginLeft: 'auto' }}>
