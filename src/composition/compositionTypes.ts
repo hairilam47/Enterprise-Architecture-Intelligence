@@ -29,6 +29,8 @@ export type CompositionCanvasNode = {
   kind: CanvasNodeKind
   enterpriseNodeId?: string
   domainEntityId?: string
+  // Link to the new unified EAStore element (Phase 1 bridge)
+  eaElementId?: string
   layer?: string
   groupId?: string
   position: CanvasPoint
