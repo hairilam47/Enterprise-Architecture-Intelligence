@@ -20,6 +20,9 @@ import { EACanvas } from './EACanvas'
 import { ViewSwitcher } from './ViewSwitcher'
 import { PropertiesPanel } from './PropertiesPanel'
 import { ImpactAnalysisPanel } from './ImpactAnalysisPanel'
+import { StoreGraphView } from './StoreGraphView'
+import { StoreThreeView } from './StoreThreeView'
+import { downloadJSON, downloadArchiMateXML } from '../../io/exportProject'
 
 type ViewTab = 'canvas' | 'graph' | '3d'
 
@@ -62,11 +65,15 @@ export function EAWorkspace() {
     }
   }
 
+  const project = useEAStore((s) => s.project)
+
   const toolbarActions: ToolbarAction[] = [
-    { key: 'palette', label: 'Palette', icon: '◫', action: () => setShowPalette((v) => !v), active: showPalette },
-    { key: 'undo', label: 'Undo', icon: '↩', action: undo, active: undoStack.length > 0 },
-    { key: 'redo', label: 'Redo', icon: '↪', action: redo, active: redoStack.length > 0 },
-    { key: 'impact', label: 'Impact', icon: '⚡', action: () => setShowImpact((v) => !v), active: showImpact },
+    { key: 'palette', label: 'Palette',   icon: '◫', action: () => setShowPalette((v) => !v), active: showPalette },
+    { key: 'undo',    label: 'Undo',      icon: '↩', action: undo,   active: undoStack.length > 0 },
+    { key: 'redo',    label: 'Redo',      icon: '↪', action: redo,   active: redoStack.length > 0 },
+    { key: 'impact',  label: 'Impact',    icon: '⚡', action: () => setShowImpact((v) => !v), active: showImpact },
+    { key: 'json',    label: 'Export JSON',  icon: '↓J', action: () => downloadJSON(project) },
+    { key: 'xml',     label: 'Export XML',   icon: '↓X', action: () => downloadArchiMateXML(project) },
   ]
 
   return (
@@ -108,8 +115,8 @@ export function EAWorkspace() {
         {/* Canvas area */}
         <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
           {activeViewTab === 'canvas' && <EACanvas />}
-          {activeViewTab === 'graph' && <GraphPlaceholder />}
-          {activeViewTab === '3d' && <ThreePlaceholder />}
+          {activeViewTab === 'graph' && <StoreGraphView />}
+          {activeViewTab === '3d' && <StoreThreeView />}
         </div>
 
         {/* Right panels */}
@@ -120,20 +127,3 @@ export function EAWorkspace() {
   )
 }
 
-// ── Placeholder panels for Graph + 3D views ────────────────────────────────
-
-function GraphPlaceholder() {
-  return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: 14 }}>
-      D3 Graph view — wiring to store in progress (Phase 5)
-    </div>
-  )
-}
-
-function ThreePlaceholder() {
-  return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: 14 }}>
-      Three.js 3D view — wiring to store in progress (Phase 5)
-    </div>
-  )
-}
